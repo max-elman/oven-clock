@@ -11,7 +11,7 @@ A wall clock for a Samsung NQ70M7770 wall oven. A 3D-printed cover plate sits ov
 | Folder | What it is |
 | --- | --- |
 | `plate/` | The cover plate: `oven-plate.scad` (OpenSCAD source, current version v5), STL, print-orientation files, and sliced Bambu files for the H2C and X1C (PLA, gyroid 15%). |
-| `plate/versions/` | Earlier versions (v1–v4) for reference. |
+| `plate/versions/` | Every version, v1–v5, each with its H2C print file. v5 is the same as the files in `plate/`. |
 | `firmware/` | The clock firmware: a fork of [papyrix-reader](https://github.com/bigbag/papyrix-reader) by bigbag (MIT), with its full history. |
 | `tools/` | `make-clock-font.py`, which turns a TTF into the clock's digit bitmaps. |
 | `images/` | Renders of the plate and the clock face. |
