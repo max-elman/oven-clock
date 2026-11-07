@@ -174,6 +174,8 @@ bool prepareStandby(Core& core, ResumeRecord& record) {
 }
 
 bool standbyDue(Core& core, uint32_t nowMs, bool operationPending) {
+  // Oven clock: stay awake while on USB so it can be flashed and debugged; sleep only on battery.
+  if (core.usb.isConnected()) return false;
   return state.powerMode == PowerMode::PowerSaving && !state.saveFailed && core.input.userIdleTimeMs() >= 15000 &&
          interactionExpired(nowMs, state.interactionStartedMs, operationPending);
 }
@@ -201,12 +203,11 @@ void enter(Core& core) {
   loadSettings(core);
   applyTimezone(state.utcOffset);
 
-  std::tm timeinfo{};
-  if (core.pendingSync == SyncMode::NtpSync || !core.clock.localTime(timeinfo)) {
-    synchronize(core, state, true);
-  } else {
-    core.wifi.shutdown();
-  }
+  // Oven clock: sync over Wi-Fi every time the clock starts (the RTC drifted hours without it).
+  const SyncResult result = synchronize(core, state, true);
+  LOG_INF(TAG, "Start-up sync: %d (0 ok) utc=%lld", static_cast<int>(result),
+          static_cast<long long>(std::time(nullptr)));
+  core.wifi.shutdown();
   state.nextNtpUtc = nextSyncUtc(std::time(nullptr), NTP_SYNC_SECONDS[state.ntpSyncSetting]);
   state.interactionStartedMs = millis();
 }

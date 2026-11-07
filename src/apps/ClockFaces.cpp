@@ -4,8 +4,10 @@
 #include <Theme.h>
 
 #include <cmath>
+#include <cstdio>
 
 #include "ClockFacePrimitives.h"
+#include "fonts/ClockFontInter.h"
 
 namespace papyrix::clock_faces {
 namespace {
@@ -75,8 +77,8 @@ void drawBig(const Context& context) {
   drawDate(context, layout);
 }
 
-// Oven clock face: H:MM or HH:MM across the whole landscape screen, nothing else.
-void drawWide(const Context& context) {
+// Oven clock face: H:MM or HH:MM in seven-segment digits across the landscape screen.
+void drawSegment(const Context& context) {
   const auto& r = context.renderer;
   const bool color = context.theme.primaryTextBlack;
   const DisplayTime value = displayTime(context.time, context.use24h);
@@ -104,6 +106,52 @@ void drawWide(const Context& context) {
   drawSevenSegmentDigit(r, x, y, value.minute / 10, digitW, digitH, thick, color);
   x += digitW + gap;
   drawSevenSegmentDigit(r, x, y, value.minute % 10, digitW, digitH, thick, color);
+}
+
+
+const clock_font::Glyph* findGlyph(char c) {
+  for (const auto& glyph : clock_font::GLYPHS) {
+    if (glyph.c == c) return &glyph;
+  }
+  return nullptr;
+}
+
+// Oven clock face: H:MM in Inter Light, centered, nothing else. Uses the theme's text color,
+// so it is white on black when the frame picked the dark colors.
+void drawModern(const Context& context) {
+  const auto& r = context.renderer;
+  const bool color = context.theme.primaryTextBlack;
+  const DisplayTime value = displayTime(context.time, context.use24h);
+  char text[8];
+  if (value.showLeadingZero || value.hour >= 10)
+    snprintf(text, sizeof(text), "%02d:%02d", value.hour, value.minute);
+  else
+    snprintf(text, sizeof(text), "%d:%02d", value.hour, value.minute);
+  int total = 0;
+  for (const char* p = text; *p; ++p) {
+    if (const auto* glyph = findGlyph(*p)) total += glyph->advance;
+  }
+  int x = (r.getScreenWidth() - total) / 2;
+  const int y = (r.getScreenHeight() - clock_font::HEIGHT) / 2;
+  for (const char* p = text; *p; ++p) {
+    const auto* glyph = findGlyph(*p);
+    if (!glyph) continue;
+    const int rowBytes = (glyph->width + 7) / 8;
+    const uint8_t* rows = clock_font::BITMAP + glyph->offset;
+    for (int gy = 0; gy < clock_font::HEIGHT; ++gy) {
+      const uint8_t* row = rows + gy * rowBytes;
+      int runStart = -1;
+      for (int gx = 0; gx <= glyph->width; ++gx) {
+        const bool on = gx < glyph->width && (row[gx >> 3] & (0x80 >> (gx & 7)));
+        if (on && runStart < 0) runStart = gx;
+        if (!on && runStart >= 0) {
+          r.fillRect(x + glyph->xoff + runStart, y + gy, gx - runStart, 1, color);
+          runStart = -1;
+        }
+      }
+    }
+    x += glyph->advance;
+  }
 }
 
 void pointAt(int centerX, int centerY, int index, int radius, int& x, int& y) {
@@ -404,7 +452,11 @@ Face selectRelative(Face face, int delta) {
 const char* name(Face face) {
   switch (face) {
     case Face::Wide:
-      return "Wide";
+      return "Modern";
+    case Face::ModernLight:
+      return "Modern light";
+    case Face::Segment:
+      return "Segment";
     case Face::Big:
       return "Big";
     case Face::Analog:
@@ -423,7 +475,11 @@ const char* name(Face face) {
 void render(const Context& context, Face face) {
   switch (face) {
     case Face::Wide:
-      drawWide(context);
+    case Face::ModernLight:
+      drawModern(context);
+      break;
+    case Face::Segment:
+      drawSegment(context);
       break;
     case Face::Analog:
       drawAnalog(context);

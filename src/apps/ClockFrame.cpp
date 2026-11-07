@@ -1,4 +1,5 @@
 #include <GfxRenderer.h>
+#include <Logging.h>
 #include <Theme.h>
 
 #include <cstdlib>
@@ -56,6 +57,15 @@ void renderFrame(GfxRenderer& renderer, const ClockFrame& frame) {
   theme.itemValuePadding = appearance.itemValuePadding;
   theme.uiFontId = UI_FONT_ID;
   theme.smallFontId = SMALL_FONT_ID;
+  if (clock_faces::isDark(frame.face)) {
+    // Oven clock: white on black for the dark face, whatever the reader's theme is.
+    theme.invertedMode = true;
+    theme.primaryTextBlack = false;
+    theme.secondaryTextBlack = false;
+    theme.selectionFillBlack = false;
+    theme.selectionTextBlack = true;
+    theme.backgroundColor = 0x00;
+  }
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.setOrientation(static_cast<GfxRenderer::Orientation>(appearance.orientation));
   renderer.clearScreen(theme.backgroundColor);
@@ -65,6 +75,8 @@ void renderFrame(GfxRenderer& renderer, const ClockFrame& frame) {
   const std::time_t local = static_cast<std::time_t>(pacificLocalSeconds(frame.utcSeconds));
   std::tm timeinfo{};
   const bool valid = gmtime_r(&local, &timeinfo) != nullptr;
+  LOG_INF("CLOCK_FRAME", "utc=%lld local=%02d:%02d face=%d", static_cast<long long>(frame.utcSeconds),
+          timeinfo.tm_hour, timeinfo.tm_min, static_cast<int>(frame.face));
   if (frame.utcSeconds >= 946684800 && valid) {
     clock_faces::render({renderer, theme, timeinfo, frame.use24h != 0, frame.dateFormat, frame.utcOffset}, frame.face);
   } else {

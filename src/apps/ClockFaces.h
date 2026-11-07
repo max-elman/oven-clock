@@ -17,11 +17,13 @@ enum class Face : uint8_t {
   Minimal = 5,
   Serif = 6,
   DayNight = 7,
-  Wide = 8,  // oven clock: 12-hour time only, landscape, seven-segment
-  Count = 9,
+  Wide = 8,          // oven clock default: Inter Light digits, white on black
+  ModernLight = 9,   // same digits, black on white
+  Segment = 10,      // seven-segment digits
+  Count = 11,
 };
 
-inline constexpr Face SELECTABLE_FACES[] = {Face::Wide, Face::Big, Face::Analog, Face::Retro, Face::Flip, Face::DayNight};
+inline constexpr Face SELECTABLE_FACES[] = {Face::Wide, Face::ModernLight, Face::Segment, Face::Big, Face::Analog, Face::Retro, Face::Flip, Face::DayNight};
 
 struct Context {
   GfxRenderer& renderer;
@@ -38,6 +40,8 @@ inline constexpr bool isSelectable(Face face) {
   }
   return false;
 }
+// Faces drawn white on black (the frame sets the theme colors for them).
+inline constexpr bool isDark(Face face) { return face == Face::Wide; }
 Face selectRelative(Face face, int delta);
 const char* name(Face face);
 void render(const Context& context, Face face);
