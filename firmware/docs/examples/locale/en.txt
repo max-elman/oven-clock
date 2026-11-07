@@ -1,0 +1,329 @@
+# English - complete reference for PapyriX translations
+# Copy this file to /.papyrix/locale.txt on your SD card
+# and translate the values (right side of =)
+_language_name=English
+
+# Button labels
+BACK=Back
+OPEN=Open
+INFO=Info
+SELECT=Select
+CANCEL=Cancel
+CONFIRM=Confirm
+DONE=Done
+RETRY=Retry
+STOP=Stop
+SCAN=Scan
+RUN=Run
+GO=Go
+RESTART=Restart
+CONNECT=Connect
+READ=Read
+DELETE_BTN=Delete
+FILE=File
+APPS=Apps
+HOME=Home
+YES=Yes
+NO=No
+
+# Menu items
+SETTINGS=Settings
+READER=Reader
+SCREEN=Screen
+DEVICE=Device
+CLEANUP=Cleanup
+SYSTEM_INFO=System Info
+CHAPTERS=Chapters
+BOOKMARKS=Bookmarks
+BOOK_STATS=Book stats
+JOIN_NETWORK=Join Network
+CREATE_HOTSPOT=Create Hotspot
+WIFI_TRANSFER=WiFi Transfer
+CALIBRE_SYNC=Calibre Sync
+LANGUAGE=Language
+
+# Screen titles
+READER_SETTINGS=Reader Settings
+SCREEN_SETTINGS=Screen Settings
+DEVICE_SETTINGS=Device Settings
+FILES=Files
+NETWORK_MODE=Network Mode
+SELECT_NETWORK=Select Network
+CONNECTING_TITLE=Connecting
+WEB_SERVER=Web Server
+GO_TO_PAGE=Go to Page
+MENU=Menu
+PROGRESS=Progress
+TIME_READ=Time read
+SESSIONS=Sessions
+
+# Settings labels
+THEME=Theme
+FONT_SIZE=Font Size
+TEXT_LAYOUT=Text Layout
+LINE_SPACING=Line Spacing
+TEXT_ANTI_ALIASING=Text Anti-Aliasing
+PARAGRAPH_ALIGNMENT=Paragraph Alignment
+HYPHENATION=Hyphenation
+SHOW_IMAGES=Show Images
+STATUS_BAR=Status Bar
+READING_ORIENTATION=Reading Orientation
+AUTO_SLEEP_TIMEOUT=Auto Sleep Timeout
+SLEEP_SCREEN=Sleep Screen
+STARTUP_BEHAVIOR=Startup Behavior
+SHOW_RECENTS=Show Recents
+SHORT_POWER_BUTTON=Short Power Button
+PAGES_PER_REFRESH=Pages Per Refresh
+SUNLIGHT_FADING_FIX=Sunlight Fading Fix
+FRONT_BUTTONS=Front Buttons
+SIDE_BUTTONS=Side Buttons
+FULL_BOOK_PROCESS=Full Book Process
+TOUCH_PAGE_TURNS=Touch page turns
+
+# Settings enum values
+ON=ON
+OFF=OFF
+XSMALL=XSmall
+SMALL=Small
+NORMAL=Normal
+LARGE=Large
+COMPACT=Compact
+STANDARD=Standard
+RELAXED=Relaxed
+JUSTIFIED=Justified
+LEFT=Left
+CENTER=Center
+RIGHT=Right
+NONE_VAL=None
+TITLE_VAL=Title
+CHAPTER_VAL=Chapter
+PORTRAIT=Portrait
+LANDSCAPE_CW=Landscape CW
+INVERTED=Inverted
+LANDSCAPE_CCW=Landscape CCW
+DARK=Dark
+LIGHT=Light
+CUSTOM=Custom
+COVER=Cover
+KEEP_PAGE=Keep Page
+LAST_DOCUMENT=Last Document
+IGNORE=Ignore
+SLEEP_VAL=Sleep
+PAGE_TURN=Page Turn
+NEVER=Never
+MIN_5=5 min
+MIN_10=10 min
+MIN_15=15 min
+MIN_30=30 min
+PREV_NEXT=Prev/Next
+NEXT_PREV=Next/Prev
+FRONT_BCLR=B/C/L/R
+FRONT_LRBC=L/R/B/C
+
+# Cleanup
+CLEAR_RECENT=Clear recent books
+CLEAR_BOOK_CACHE=Clear Book Cache
+CLEAR_DEVICE_STORAGE=Clear Device Storage
+FACTORY_RESET=Factory Reset
+CLEAR_RECENT_Q=Clear recent books?
+CLEAR_RECENT_MSG=Book files and stats are kept.
+CLEAR_CACHES_Q=Clear Caches?
+CLEAR_CACHES_MSG1=This will delete all book caches
+CLEAR_CACHES_MSG2=and reading progress.
+CLEAR_DEVICE_Q=Clear Device?
+CLEAR_DEVICE_MSG1=This will erase internal flash
+CLEAR_DEVICE_MSG2=storage. Device will restart.
+FACTORY_RESET_Q=Factory Reset?
+FACTORY_RESET_MSG1=This will erase ALL data including
+FACTORY_RESET_MSG2=settings and WiFi credentials!
+CLEARING_CACHE=Clearing cache...
+CACHE_CLEARED=Cache cleared
+NO_CACHE_TO_CLEAR=No cache to clear
+CLEARING_STORAGE=Clearing device storage...
+RESETTING_DEVICE=Resetting device...
+DONE_RESTARTING=Done. Restarting...
+
+# Status messages
+SCANNING=Scanning...
+CONNECTING=Connecting...
+GETTING_IP=Getting IP address...
+CONNECTED=Connected!
+STARTING=Starting...
+LOADING=Loading...
+INDEXING=Indexing...
+OPENING_BOOK=Opening book...
+DELETING=Deleting...
+NO_BOOK_OPEN=No book open
+PRESS_FILE_TO_EXPLORE=Press "Books" to explore
+PRESS_FILES_TO_EXPLORE=Press "Files" to explore
+NO_FILES_FOUND=No files found
+END_OF_BOOK=End of book
+FAILED_TO_LOAD_PAGE=Failed to load page
+CANNOT_DELETE_ACTIVE=Cannot delete active book
+DELETED=Deleted
+DELETE_FAILED=Delete failed
+SERVER_STOPPED=Server stopped
+RETURNING_TO_LIBRARY=Returning to library...
+SLEEPING=SLEEPING
+
+# Network
+CONNECT_WIFI=Connect to existing WiFi
+CREATE_WIFI_HOTSPOT=Create WiFi hotspot
+NO_NETWORKS_FOUND=No networks found
+PRESS_CONFIRM_SCAN=Press Confirm to scan again
+DISCONNECTED_RESTART=Disconnected. Restart?
+
+# Calibre
+WAITING_FOR_CALIBRE=Waiting for Calibre...
+CONNECTING_TO_CALIBRE=Connecting to Calibre...
+CALIBRE_HELP=In Calibre: Connect/share > Wireless device
+
+# Format strings
+FMT_IP=IP: %s
+FMT_RECEIVED_BOOKS=Received %d book(s)
+FMT_PAGE_OF=of %d
+
+# System info
+VERSION=Version
+UPTIME=Uptime
+BATTERY=Battery
+CHIP=Chip
+CPU=CPU
+FREE_MEMORY=Free Memory
+INTERNAL_DISK=Internal Disk
+SD_CARD=SD Card
+READY=Ready
+NOT_AVAILABLE=Not available
+
+# Keyboard
+BACKSPACE=Backspace
+SPACE=Space
+
+# Error
+ERROR=Error
+PRESS_ANY_BUTTON=Press any button to continue
+
+# Confirm dialog
+CONFIRM_DELETE=Confirm Delete
+
+# Misc
+ENTER_TEXT=Enter Text
+NO_COVER=No Cover
+ADD=Add
+NO_BOOKMARKS=No bookmarks yet
+BOOKS=Books
+RECENT_BOOKS=Recent
+NO_RECENT_BOOKS=No recent books
+REMOVE_RECENT=Remove
+REMOVE_RECENT_Q=Remove from recent?
+DELETE_FILE_Q=Delete this file?
+DELETE_FOLDER_Q=Delete this folder?
+ENTER_PASSWORD=Enter Password
+SAVE_PASSWORD_Q=Save Password?
+SAVE_PASSWORD_MSG=Save password for this network?
+CONNECTION_FAILED=Connection failed
+HOTSPOT_FAILED=Failed to start hotspot
+INITIALIZING_WIFI=Initializing WiFi...
+INVALID_FILE=Invalid file
+MEMORY_ERROR=Memory error
+PAGE_LOAD_ERROR=Page load error
+RECEIVING=Receiving...
+BOOTING=BOOTING
+
+# Firmware Update (from SD card)
+FIRMWARE_UPDATE=Firmware Update
+FIRMWARE_WARNING=Do not power off or remove SD card during update
+FIRMWARE_FILE_FOUND=Found
+FLASHING_UPDATE=Flashing...
+UPDATE_COMPLETE=Update complete! Restarting...
+UPDATE_FAILED=Update failed
+UPDATE_WRONG_DEVICE=Wrong firmware
+NO_FIRMWARE_FILE=No firmware file found on SD card
+VALIDATING_FIRMWARE=Validating...
+BOOKMARK_VAL=Bookmark
+BOOKMARK_ADDED=Bookmark added
+RECENT_NETWORK=Recent
+
+# Recycle bin
+RECYCLE_BIN=Recycle bin
+RESTORE=Restore
+EMPTY_TRASH=Empty Trash
+EMPTY_TRASH_Q=Empty Trash?
+EMPTY_TRASH_MSG1=This permanently deletes
+EMPTY_TRASH_MSG2=all trashed books.
+EMPTYING_TRASH=Emptying trash...
+TRASH_EMPTIED=Trash emptied
+NO_TRASH_TO_EMPTY=No trash to empty
+MOVING_TO_TRASH=Moving to trash...
+MOVED_TO_TRASH=Moved to trash
+MOVE_TO_TRASH_FAILED=Could not move to trash
+RESTORING=Restoring...
+RESTORED=Restored
+RESTORE_FAILED=Could not restore
+CONFIRM_TRASH=Confirm Move
+CONFIRM_RESTORE=Confirm Restore
+MOVE_TO_TRASH_Q=Move this file to trash?
+RESTORE_FILE_Q=Restore to original folder?
+DELETE_PERMANENTLY_Q=Delete this file permanently?
+CANNOT_DELETE_TRASH=Cannot delete the trash folder
+BRIGHTNESS=Brightness
+WARMTH=Warmth
+CONVERTING=Converting...
+CONVERSION_FAILED=Conversion failed
+IMAGE_OPEN_FAILED=Failed to open image
+IMAGE_INVALID=Invalid image file
+WIFI=WiFi
+SAVED_NETWORKS=Saved
+EDIT_NETWORK=Edit
+FORGET_NETWORK=Forget
+ENTER_SSID=SSID
+SAVE_FAILED=Save failed
+INVALID_SSID=SSID: 1-32 characters
+NETWORK_LIMIT=Network limit reached
+SSID_ALREADY_SAVED=Already saved
+FILENAME_VAL=Filename
+LOW_SPACE_WARNING=SD card full. Free space.
+HARDWARE_BATCH=Hardware batch
+BATCH_1=Batch 1
+BATCH_2=Batch 2
+CHANGE_BATCH_Q=Change hardware batch?
+CHANGE_BATCH_RESTART=Save and restart to apply.
+FRONT_LIGHT_TIMEOUT=Light timer
+SMOOTH_FRONT_LIGHT=Smooth light
+SEC_30=30 s
+MIN_1=1 min
+MIN_2=2 min
+SLEEP_IMAGE=Sleep Image
+RANDOM=Random
+GAME_SCORE=Score
+GAME_TOUCH_HINT=Swipe or tap an arrow
+GAME_BUTTON_HINT=Use direction buttons
+GAME_RESUME=Resume
+GAME_NEW=New game
+GAME_RESTART=Start a new game?
+GAME_CONTINUE=Continue
+GAME_OVER=Game over
+GAME_LOAD_ERROR=Cannot load game
+GAME_CLEAR_ERROR=Cannot clear save
+GAME_DISCARD=Discard changes
+GAME_KEEP_SAVE=Old save may remain
+GO_PLACE=Place
+GO_PASS=Pass
+GO_RESIGN=Resign
+GO_RESIGN_CONFIRM=Resign?
+GO_OCCUPIED=Point occupied
+GO_REPETITION=Repeated position
+GO_THINK_ERROR=Cannot choose a move
+GO_MEMORY_ERROR=Not enough memory
+GO_STOPPING=Stopping
+GO_SAVE_EXIT=Save and exit
+GO_BLACK=Black
+GO_WHITE=White
+GO_TURN=Turn
+GO_THINKING=Thinking
+GO_LAST_PASS=Last move: pass
+GO_TOUCH_HINT=Tap a point, then Place
+GO_BUTTON_HINT=Hold Confirm for menu
+GO_KOMI=Komi
+GO_WINS=wins
+GO_DRAW=Draw

@@ -1,0 +1,329 @@
+# Español - referencia completa para traducciones de PapyriX
+# Copia este archivo a /.papyrix/locale.txt en tu tarjeta SD
+# y traduce los valores (parte derecha del =)
+_language_name=Español
+
+# Button labels
+BACK=Atrás
+OPEN=Abrir
+INFO=Info
+SELECT=Selecc.
+CANCEL=Cancelar
+CONFIRM=Confirmar
+DONE=Listo
+RETRY=Reint.
+STOP=Detener
+SCAN=Buscar
+RUN=Ejecutar
+GO=Ir
+RESTART=Reiniciar
+CONNECT=Conectar
+READ=Leer
+DELETE_BTN=Borrar
+FILE=Archivo
+APPS=Aplic.
+HOME=Inicio
+YES=Sí
+NO=No
+
+# Menu items
+SETTINGS=Ajustes
+READER=Lector
+SCREEN=Pantalla
+DEVICE=Dispositivo
+CLEANUP=Limpieza
+SYSTEM_INFO=Info del sistema
+CHAPTERS=Capítulos
+BOOKMARKS=Marcadores
+BOOK_STATS=Estadísticas
+JOIN_NETWORK=Unirse a red
+CREATE_HOTSPOT=Crear hotspot
+WIFI_TRANSFER=Transferencia WiFi
+CALIBRE_SYNC=Sincro. Calibre
+LANGUAGE=Idioma
+
+# Screen titles
+READER_SETTINGS=Ajustes del lector
+SCREEN_SETTINGS=Ajustes de pantalla
+DEVICE_SETTINGS=Ajustes del dispositivo
+FILES=Archivos
+NETWORK_MODE=Modo de red
+SELECT_NETWORK=Seleccionar red
+CONNECTING_TITLE=Conectando
+WEB_SERVER=Servidor web
+GO_TO_PAGE=Ir a página
+MENU=Menú
+PROGRESS=Progreso
+TIME_READ=Tiempo leído
+SESSIONS=Sesiones
+
+# Settings labels
+THEME=Tema
+FONT_SIZE=Tamaño
+TEXT_LAYOUT=Diseño texto
+LINE_SPACING=Interlineado
+TEXT_ANTI_ALIASING=Suavizado de texto
+PARAGRAPH_ALIGNMENT=Alineación
+HYPHENATION=División palabras
+SHOW_IMAGES=Imágenes
+STATUS_BAR=Barra de estado
+READING_ORIENTATION=Orientación
+AUTO_SLEEP_TIMEOUT=Auto suspensión
+SLEEP_SCREEN=Pantalla de reposo
+STARTUP_BEHAVIOR=Inicio
+SHOW_RECENTS=Mostrar recientes
+SHORT_POWER_BUTTON=Puls. corta encend.
+PAGES_PER_REFRESH=Págs./actualización
+SUNLIGHT_FADING_FIX=Corrección luz solar
+FRONT_BUTTONS=Botones frontales
+SIDE_BUTTONS=Botones laterales
+FULL_BOOK_PROCESS=Procesar libro
+TOUCH_PAGE_TURNS=Pasar páginas al tocar
+
+# Settings enum values
+ON=SÍ
+OFF=NO
+XSMALL=Extra peq.
+SMALL=Pequeño
+NORMAL=Normal
+LARGE=Grande
+COMPACT=Compacto
+STANDARD=Estándar
+RELAXED=Amplio
+JUSTIFIED=Justificado
+LEFT=Izquierda
+CENTER=Centro
+RIGHT=Derecha
+NONE_VAL=Ninguno
+TITLE_VAL=Título
+CHAPTER_VAL=Capítulo
+PORTRAIT=Vertical
+LANDSCAPE_CW=Horizontal der.
+INVERTED=Invertido
+LANDSCAPE_CCW=Horizontal izq.
+DARK=Oscuro
+LIGHT=Claro
+CUSTOM=Personal.
+COVER=Portada
+KEEP_PAGE=Mantener página
+LAST_DOCUMENT=Último libro
+IGNORE=Ignorar
+SLEEP_VAL=Suspender
+PAGE_TURN=Pasar página
+NEVER=Nunca
+MIN_5=5 min
+MIN_10=10 min
+MIN_15=15 min
+MIN_30=30 min
+PREV_NEXT=Ant/Sig
+NEXT_PREV=Sig/Ant
+FRONT_BCLR=B/C/L/R
+FRONT_LRBC=L/R/B/C
+
+# Cleanup
+CLEAR_RECENT=Borrar libros recientes
+CLEAR_BOOK_CACHE=Borrar caché de libros
+CLEAR_DEVICE_STORAGE=Borrar almacenamiento
+FACTORY_RESET=Restaurar de fábrica
+CLEAR_RECENT_Q=¿Borrar libros recientes?
+CLEAR_RECENT_MSG=Los libros y estadísticas se conservan.
+CLEAR_CACHES_Q=¿Borrar cachés?
+CLEAR_CACHES_MSG1=Se eliminarán todos los cachés
+CLEAR_CACHES_MSG2=de libros y el progreso de lectura.
+CLEAR_DEVICE_Q=¿Borrar dispositivo?
+CLEAR_DEVICE_MSG1=Se borrará la memoria flash
+CLEAR_DEVICE_MSG2=interna. El dispositivo se reiniciará.
+FACTORY_RESET_Q=¿Restaurar de fábrica?
+FACTORY_RESET_MSG1=Se borrarán TODOS los datos, incl.
+FACTORY_RESET_MSG2=ajustes y credenciales WiFi.
+CLEARING_CACHE=Borrando caché...
+CACHE_CLEARED=Caché borrada
+NO_CACHE_TO_CLEAR=Sin caché que borrar
+CLEARING_STORAGE=Borrando almacenamiento...
+RESETTING_DEVICE=Restaurando dispositivo...
+DONE_RESTARTING=Listo. Reiniciando...
+
+# Status messages
+SCANNING=Buscando...
+CONNECTING=Conectando...
+GETTING_IP=Obteniendo dirección IP...
+CONNECTED=¡Conectado!
+STARTING=Iniciando...
+LOADING=Cargando...
+INDEXING=Indexando...
+OPENING_BOOK=Abriendo libro...
+DELETING=Eliminando...
+NO_BOOK_OPEN=Ningún libro abierto
+PRESS_FILE_TO_EXPLORE=Pulsa "Libros" para explorar
+PRESS_FILES_TO_EXPLORE=Pulsa "Archivos" para explorar
+NO_FILES_FOUND=No hay archivos
+END_OF_BOOK=Fin del libro
+FAILED_TO_LOAD_PAGE=Error al cargar la página
+CANNOT_DELETE_ACTIVE=No se puede borrar el libro activo
+DELETED=Eliminado
+DELETE_FAILED=Error al eliminar
+SERVER_STOPPED=Servidor detenido
+RETURNING_TO_LIBRARY=Volviendo a la biblioteca...
+SLEEPING=EN REPOSO
+
+# Network
+CONNECT_WIFI=Conectar a WiFi existente
+CREATE_WIFI_HOTSPOT=Crear hotspot WiFi
+NO_NETWORKS_FOUND=No hay redes
+PRESS_CONFIRM_SCAN=Pulsa Confirmar para buscar de nuevo
+DISCONNECTED_RESTART=Desconectado. ¿Reiniciar?
+
+# Calibre
+WAITING_FOR_CALIBRE=Esperando a Calibre...
+CONNECTING_TO_CALIBRE=Conectando a Calibre...
+CALIBRE_HELP=En Calibre: Conectar/compartir > Dispositivo inalámbrico
+
+# Format strings
+FMT_IP=IP: %s
+FMT_RECEIVED_BOOKS=%d libro(s) recibido(s)
+FMT_PAGE_OF=de %d
+
+# System info
+VERSION=Versión
+UPTIME=Tiempo activo
+BATTERY=Batería
+CHIP=Chip
+CPU=CPU
+FREE_MEMORY=Memoria libre
+INTERNAL_DISK=Disco interno
+SD_CARD=Tarjeta SD
+READY=Listo
+NOT_AVAILABLE=No disponible
+
+# Keyboard
+BACKSPACE=Borrar
+SPACE=Espacio
+
+# Error
+ERROR=Error
+PRESS_ANY_BUTTON=Pulsa un botón para continuar
+
+# Confirm dialog
+CONFIRM_DELETE=Confirmar eliminación
+
+# Misc
+ENTER_TEXT=Introducir texto
+NO_COVER=Sin portada
+ADD=Añadir
+NO_BOOKMARKS=Sin marcadores
+BOOKS=Libros
+RECENT_BOOKS=Recientes
+NO_RECENT_BOOKS=Sin libros recientes
+REMOVE_RECENT=Quitar
+REMOVE_RECENT_Q=¿Quitar de recientes?
+DELETE_FILE_Q=¿Eliminar este archivo?
+DELETE_FOLDER_Q=¿Eliminar esta carpeta?
+ENTER_PASSWORD=Introducir contraseña
+SAVE_PASSWORD_Q=¿Guardar contraseña?
+SAVE_PASSWORD_MSG=¿Guardar contraseña de esta red?
+CONNECTION_FAILED=Conexión fallida
+HOTSPOT_FAILED=Error al iniciar hotspot
+INITIALIZING_WIFI=Iniciando WiFi...
+INVALID_FILE=Archivo inválido
+MEMORY_ERROR=Error de memoria
+PAGE_LOAD_ERROR=Error al cargar página
+RECEIVING=Recibiendo...
+BOOTING=INICIANDO
+
+# Firmware Update (from SD card)
+FIRMWARE_UPDATE=Actualización de firmware
+FIRMWARE_WARNING=No apague ni retire la SD durante la actualización
+FIRMWARE_FILE_FOUND=Encontrado
+FLASHING_UPDATE=Instalando...
+UPDATE_COMPLETE=¡Actualizado! Reiniciando...
+UPDATE_FAILED=Actualización fallida
+UPDATE_WRONG_DEVICE=Firmware incorrecto
+NO_FIRMWARE_FILE=No hay archivo de firmware en la SD
+VALIDATING_FIRMWARE=Validando...
+BOOKMARK_VAL=Marcador
+BOOKMARK_ADDED=Marcador añadido
+RECENT_NETWORK=Reciente
+
+# Recycle bin
+RECYCLE_BIN=Papelera
+RESTORE=Restaurar
+EMPTY_TRASH=Vaciar papelera
+EMPTY_TRASH_Q=¿Vaciar papelera?
+EMPTY_TRASH_MSG1=Esto elimina permanentemente
+EMPTY_TRASH_MSG2=todos los libros de la papelera.
+EMPTYING_TRASH=Vaciando papelera...
+TRASH_EMPTIED=Papelera vaciada
+NO_TRASH_TO_EMPTY=Nada que vaciar
+MOVING_TO_TRASH=Moviendo a la papelera...
+MOVED_TO_TRASH=Movido a la papelera
+MOVE_TO_TRASH_FAILED=Error al mover a la papelera
+RESTORING=Restaurando...
+RESTORED=Restaurado
+RESTORE_FAILED=Error al restaurar
+CONFIRM_TRASH=Confirmar movimiento
+CONFIRM_RESTORE=Confirmar restauración
+MOVE_TO_TRASH_Q=¿Mover este archivo a la papelera?
+RESTORE_FILE_Q=¿Restaurar en la carpeta original?
+DELETE_PERMANENTLY_Q=¿Eliminar este archivo permanentemente?
+CANNOT_DELETE_TRASH=No se puede borrar la carpeta de la papelera
+BRIGHTNESS=Brillo
+WARMTH=Calidez
+CONVERTING=Convirtiendo...
+CONVERSION_FAILED=Error de conversión
+IMAGE_OPEN_FAILED=No se pudo abrir la imagen
+IMAGE_INVALID=Imagen no válida
+WIFI=WiFi
+SAVED_NETWORKS=Guardadas
+EDIT_NETWORK=Editar
+FORGET_NETWORK=Olvidar
+ENTER_SSID=SSID
+SAVE_FAILED=Error al guardar
+INVALID_SSID=SSID: 1-32 caracteres
+NETWORK_LIMIT=Límite de redes
+SSID_ALREADY_SAVED=Ya guardada
+FILENAME_VAL=Nombre de archivo
+LOW_SPACE_WARNING=Tarjeta SD llena. Libere espacio.
+HARDWARE_BATCH=Lote de hardware
+BATCH_1=Lote 1
+BATCH_2=Lote 2
+CHANGE_BATCH_Q=¿Cambiar el lote de hardware?
+CHANGE_BATCH_RESTART=Guarde y reinicie para aplicar.
+FRONT_LIGHT_TIMEOUT=Apagado de luz
+SMOOTH_FRONT_LIGHT=Luz gradual
+SEC_30=30 s
+MIN_1=1 min
+MIN_2=2 min
+SLEEP_IMAGE=Imagen de reposo
+RANDOM=Aleatoria
+GAME_SCORE=Puntos
+GAME_TOUCH_HINT=Desliza o toca una flecha
+GAME_BUTTON_HINT=Usa los botones de dirección
+GAME_RESUME=Reanudar
+GAME_NEW=Nueva partida
+GAME_RESTART=¿Nueva partida?
+GAME_CONTINUE=Continuar
+GAME_OVER=Fin de partida
+GAME_LOAD_ERROR=No se puede cargar
+GAME_CLEAR_ERROR=No se puede borrar
+GAME_DISCARD=Descartar cambios
+GAME_KEEP_SAVE=Puede quedar la partida anterior
+GO_PLACE=Colocar
+GO_PASS=Pasar
+GO_RESIGN=Rendirse
+GO_BLACK=Negras
+GO_WHITE=Blancas
+GO_TURN=Turno
+GO_THINKING=Pensando
+GO_KOMI=Komi
+GO_WINS=ganan
+GO_DRAW=Empate
+GO_OCCUPIED=Punto ocupado
+GO_REPETITION=Posición repetida
+GO_RESIGN_CONFIRM=¿Rendirse?
+GO_SAVE_EXIT=Guardar y salir
+GO_STOPPING=Deteniendo
+GO_THINK_ERROR=Sin jugada
+GO_MEMORY_ERROR=Memoria insuficiente
+GO_LAST_PASS=Última jugada: pasar
+GO_TOUCH_HINT=Toca un punto y luego Colocar
+GO_BUTTON_HINT=Mantén Confirmar para el menú

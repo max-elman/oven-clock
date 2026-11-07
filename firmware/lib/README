@@ -1,0 +1,5 @@
+# Firmware libraries
+
+This directory contains local firmware libraries and third-party dependencies. Each local library keeps its source files in a `src/` directory. `library.json` supplies library metadata and build settings.
+
+See library README files for summaries and public headers for API details.

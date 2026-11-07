@@ -1,0 +1,417 @@
+#pragma once
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <math.h>  // global ::round used by Arduino-style code
+
+#include "Print.h"
+
+// Keep these values equal to ESP-IDF esp_heap_caps.h.
+#define MALLOC_CAP_8BIT (1 << 2)
+#define MALLOC_CAP_DMA (1 << 3)
+#define MALLOC_CAP_SPIRAM (1 << 10)
+#define MALLOC_CAP_INTERNAL (1 << 11)
+#define MALLOC_CAP_DEFAULT (1 << 12)
+
+struct TestHeapPool {
+  size_t freeSize;
+  size_t largestBlock;
+};
+
+inline TestHeapPool& testInternalHeap() {
+  static TestHeapPool pool{200000, 200000};
+  return pool;
+}
+inline TestHeapPool& testPsramHeap() {
+  static TestHeapPool pool{200000, 200000};
+  return pool;
+}
+inline bool& testPsramAllocationFailure() {
+  static bool fail = false;
+  return fail;
+}
+inline void testSetHeapPool(uint32_t caps, size_t freeSize, size_t largestBlock) {
+  auto& pool = (caps & MALLOC_CAP_SPIRAM) ? testPsramHeap() : testInternalHeap();
+  pool = {freeSize, largestBlock};
+}
+inline void testSetPsramAllocationFailure(bool fail) { testPsramAllocationFailure() = fail; }
+inline void testSetLargestFreeBlock(size_t value) {
+  testInternalHeap() = {value, value};
+  testPsramHeap() = {value, value};
+}
+inline void testResetLargestFreeBlock() {
+  testInternalHeap() = {200000, 200000};
+  testPsramHeap() = {200000, 200000};
+  testPsramAllocationFailure() = false;
+}
+inline size_t heap_caps_get_largest_free_block(uint32_t caps) {
+  if ((caps & (MALLOC_CAP_SPIRAM | MALLOC_CAP_INTERNAL)) == (MALLOC_CAP_SPIRAM | MALLOC_CAP_INTERNAL)) return 0;
+  if (caps & MALLOC_CAP_SPIRAM) return testPsramHeap().largestBlock;
+  if (caps & MALLOC_CAP_INTERNAL) return testInternalHeap().largestBlock;
+  return (caps & MALLOC_CAP_8BIT) ? std::max(testInternalHeap().largestBlock, testPsramHeap().largestBlock) : 0;
+}
+inline size_t heap_caps_get_free_size(uint32_t caps) {
+  if ((caps & (MALLOC_CAP_SPIRAM | MALLOC_CAP_INTERNAL)) == (MALLOC_CAP_SPIRAM | MALLOC_CAP_INTERNAL)) return 0;
+  if (caps & MALLOC_CAP_SPIRAM) return testPsramHeap().freeSize;
+  if (caps & MALLOC_CAP_INTERNAL) return testInternalHeap().freeSize;
+  return (caps & MALLOC_CAP_8BIT) ? testInternalHeap().freeSize + testPsramHeap().freeSize : 0;
+}
+
+// PROGMEM / pgm_read helpers for host builds
+#ifndef PROGMEM
+#define PROGMEM
+#endif
+#ifndef pgm_read_byte
+#define pgm_read_byte(addr) (*(const unsigned char*)(addr))
+#endif
+inline void* memcpy_P(void* destination, const void* source, size_t size) {
+  return std::memcpy(destination, source, size);
+}
+
+// Minimal SPISettings stub
+struct SPISettings {
+  uint32_t clockHz = 0;
+  SPISettings() {}
+  SPISettings(uint32_t hz, int, int) : clockHz(hz) {}
+};
+
+using TestSpiWriteHook = void (*)(const uint8_t*, size_t);
+inline TestSpiWriteHook& testSpiWriteHook() {
+  static TestSpiWriteHook hook = nullptr;
+  return hook;
+}
+inline void testSetSpiWriteHook(TestSpiWriteHook hook) { testSpiWriteHook() = hook; }
+
+// Minimal SPI mock
+struct MockSPI {
+  static constexpr size_t RECORD_CAPACITY = 64;
+
+  size_t beginTransactionCount = 0;
+  size_t endTransactionCount = 0;
+  uint32_t lastClockHz = 0;
+  uint8_t transferValues[RECORD_CAPACITY]{};
+  size_t transferCount = 0;
+  size_t writeSizes[RECORD_CAPACITY]{};
+  size_t writeCount = 0;
+  int sclkPin = -1, misoPin = -1, mosiPin = -1, selectPin = -1;
+  bool active = false;
+
+  void begin(int sclk = -1, int miso = -1, int mosi = -1, int ssel = -1) {
+    if (active) return;
+    if (sclk == -1 && miso == -1 && mosi == -1 && ssel == -1) {
+#if PAPYRIX_TARGET_X4PRO || PAPYRIX_TARGET_X4CLASSIC || PAPYRIX_TARGET_STICKY
+      sclk = 12; miso = 13; mosi = 11; ssel = 10;
+#else
+      sclk = 4; miso = 5; mosi = 6; ssel = 7;
+#endif
+    }
+    sclkPin = sclk;
+    misoPin = miso;
+    mosiPin = mosi;
+    selectPin = ssel;
+    active = true;
+  }
+  void end() { active = false; }
+  void* bus() const { return active ? const_cast<MockSPI*>(this) : nullptr; }
+  int pinSS() const { return selectPin; }
+  void beginTransaction(const SPISettings& settings) {
+    beginTransactionCount++;
+    lastClockHz = settings.clockHz;
+  }
+  void endTransaction() { endTransactionCount++; }
+  void transfer(uint8_t value) {
+    if (transferCount < RECORD_CAPACITY) transferValues[transferCount] = value;
+    transferCount++;
+    if (testSpiWriteHook()) testSpiWriteHook()(&value, 1);
+  }
+  void writeBytes(const uint8_t* data, size_t length) {
+    if (testSpiWriteHook()) testSpiWriteHook()(data, length);
+    if (writeCount < RECORD_CAPACITY) writeSizes[writeCount] = length;
+    writeCount++;
+  }
+  void reset() {
+    beginTransactionCount = 0;
+    endTransactionCount = 0;
+    transferCount = 0;
+    writeCount = 0;
+    lastClockHz = 0;
+  }
+};
+
+extern MockSPI SPI;
+
+// SPI mode / bit order constants
+#ifndef MSBFIRST
+#define MSBFIRST 1
+#endif
+#ifndef SPI_MODE0
+#define SPI_MODE0 0
+#endif
+
+// Forward-declare Arduino-like String used by test WString.h
+class String;
+
+// Arduino GPIO and timing stubs
+enum class TestGpioEventType : uint8_t {
+  PinMode,
+  DigitalWrite,
+  HoldDisable,
+  HoldEnable,
+  DeepSleepHold,
+  DeepSleepHoldDisable,
+  SleepSelectDisable,
+  PullUpDisable,
+  PullDownDisable,
+  Delay
+};
+
+struct TestGpioEvent {
+  TestGpioEventType type;
+  int pin;
+  int value;
+};
+
+constexpr size_t TEST_GPIO_EVENT_CAPACITY = 128;
+extern TestGpioEvent testGpioEvents[TEST_GPIO_EVENT_CAPACITY];
+extern size_t testGpioEventCount;
+void testRecordGpioEvent(TestGpioEventType type, int pin, int value);
+void testResetGpioEvents();
+
+inline void pinMode(int pin, int mode) { testRecordGpioEvent(TestGpioEventType::PinMode, pin, mode); }
+using TestDigitalWriteHook = void (*)(int, int);
+inline TestDigitalWriteHook& testDigitalWriteHook() {
+  static TestDigitalWriteHook hook = nullptr;
+  return hook;
+}
+inline void testSetDigitalWriteHook(TestDigitalWriteHook hook) { testDigitalWriteHook() = hook; }
+inline void digitalWrite(int pin, int value) {
+  testRecordGpioEvent(TestGpioEventType::DigitalWrite, pin, value);
+  if (testDigitalWriteHook()) testDigitalWriteHook()(pin, value);
+}
+using TestDigitalReadHook = int (*)(int);
+inline TestDigitalReadHook& testDigitalReadHook() {
+  static TestDigitalReadHook hook = nullptr;
+  return hook;
+}
+inline void testSetDigitalReadHook(TestDigitalReadHook hook) { testDigitalReadHook() = hook; }
+inline int digitalRead(int pin) { return testDigitalReadHook() ? testDigitalReadHook()(pin) : 0; }
+extern std::atomic<bool> testManualMillisEnabled;
+extern std::atomic<unsigned long> testManualMillisValue;
+unsigned long millis();
+inline void testLedcSync();
+inline void testSetManualMillis(unsigned long value) {
+  testManualMillisEnabled = true;
+  testManualMillisValue = value;
+  testLedcSync();
+}
+inline void testUseRealtimeMillis() { testManualMillisEnabled = false; }
+inline uint32_t& testDelayCallCount() {
+  static uint32_t value = 0;
+  return value;
+}
+inline uint32_t& testDelayTotalMs() {
+  static uint32_t value = 0;
+  return value;
+}
+inline void testResetDelayStats() {
+  testDelayCallCount() = 0;
+  testDelayTotalMs() = 0;
+}
+inline void delay(unsigned long ms) {
+  testDelayCallCount()++;
+  testDelayTotalMs() += static_cast<uint32_t>(ms);
+  if (testManualMillisEnabled) testManualMillisValue += ms;
+  testLedcSync();
+  testRecordGpioEvent(TestGpioEventType::Delay, -1, static_cast<int>(ms));
+}
+inline void delayMicroseconds(unsigned int) {}
+using TestAnalogMillivoltsHook = uint32_t (*)(uint8_t);
+inline TestAnalogMillivoltsHook& testAnalogMillivoltsHook() {
+  static TestAnalogMillivoltsHook hook = nullptr;
+  return hook;
+}
+inline uint32_t analogReadMilliVolts(uint8_t pin) {
+  auto hook = testAnalogMillivoltsHook();
+  return hook ? hook(pin) : 0;
+}
+inline unsigned testAnalogReadCount = 0;
+using TestAnalogReadHook = int (*)(int);
+inline TestAnalogReadHook& testAnalogReadHook() {
+  static TestAnalogReadHook hook = nullptr;
+  return hook;
+}
+inline void testSetAnalogReadHook(TestAnalogReadHook hook) { testAnalogReadHook() = hook; }
+inline int analogRead(int pin) {
+  ++testAnalogReadCount;
+  return testAnalogReadHook() ? testAnalogReadHook()(pin) : 4095;
+}
+inline constexpr int ADC_11db = 3;
+inline void analogSetAttenuation(int) {}
+inline void analogSetPinAttenuation(uint8_t, int) {}
+#ifndef F_CPU
+#define F_CPU 160000000L
+#endif
+inline bool g_mockCpuFreqAccepted = true;
+inline uint32_t g_mockCpuFreqMhz = 160;
+inline std::atomic<unsigned> g_mockCpuFreqCalls{0};
+struct TestLedcPin {
+  bool attached = false;
+  uint32_t hz = 0;
+  uint8_t bits = 0;
+  uint8_t channel = 0;
+  uint32_t duty = 0;
+  bool fading = false;
+  uint32_t fadeFrom = 0;
+  uint32_t fadeTarget = 0;
+  uint32_t fadeDurationMs = 0;
+  uint32_t fadeStartMs = 0;
+};
+inline TestLedcPin testLedcPins[64]{};
+inline int testLedcFailAttachPin = -1;
+inline int testLedcFailFadePin = -1;
+inline unsigned testLedcUnsafeDetachCount = 0;
+inline void testLedcSyncPin(TestLedcPin& pin) {
+  if (!pin.fading) return;
+  const uint32_t elapsed = static_cast<uint32_t>(millis()) - pin.fadeStartMs;
+  if (pin.fadeDurationMs == 0 || elapsed >= pin.fadeDurationMs) {
+    pin.duty = pin.fadeTarget;
+    pin.fading = false;
+    return;
+  }
+  const int64_t delta = static_cast<int64_t>(pin.fadeTarget) - static_cast<int64_t>(pin.fadeFrom);
+  pin.duty = static_cast<uint32_t>(static_cast<int64_t>(pin.fadeFrom) +
+                                   delta * static_cast<int64_t>(elapsed) / static_cast<int64_t>(pin.fadeDurationMs));
+}
+inline void testLedcSync() {
+  for (auto& pin : testLedcPins) testLedcSyncPin(pin);
+}
+inline bool ledcAttachChannel(uint8_t pin, uint32_t hz, uint8_t bits, uint8_t channel) {
+  if (pin >= 64 || pin == testLedcFailAttachPin) return false;
+  testLedcPins[pin].attached = true;
+  testLedcPins[pin].hz = hz;
+  testLedcPins[pin].bits = bits;
+  testLedcPins[pin].channel = channel;
+  testLedcPins[pin].fading = false;
+  return true;
+}
+inline bool ledcDetach(uint8_t pin) {
+  if (pin >= 64) return false;
+  testLedcSyncPin(testLedcPins[pin]);
+  if (testLedcPins[pin].fading) ++testLedcUnsafeDetachCount;
+  testLedcPins[pin].attached = false;
+  testLedcPins[pin].fading = false;
+  return true;
+}
+inline bool ledcWrite(uint8_t pin, uint32_t duty) {
+  if (pin >= 64 || !testLedcPins[pin].attached) return false;
+  // Real ledcWrite does not stop a running fade; the next sync restores the fade duty.
+  testLedcPins[pin].duty = duty;
+  return true;
+}
+inline uint32_t ledcRead(uint8_t pin) {
+  if (pin >= 64 || !testLedcPins[pin].attached) return 0;
+  testLedcSyncPin(testLedcPins[pin]);
+  return testLedcPins[pin].duty;
+}
+inline bool ledcFade(uint8_t pin, uint32_t startDuty, uint32_t targetDuty, int maxFadeTimeMs) {
+  if (pin >= 64 || !testLedcPins[pin].attached || pin == testLedcFailFadePin) return false;
+  auto& state = testLedcPins[pin];
+  state.duty = startDuty;
+  if (maxFadeTimeMs <= 0) {
+    state.duty = targetDuty;
+    state.fading = false;
+    return true;
+  }
+  state.fadeFrom = startDuty;
+  state.fadeTarget = targetDuty;
+  state.fadeDurationMs = static_cast<uint32_t>(maxFadeTimeMs);
+  state.fadeStartMs = static_cast<uint32_t>(millis());
+  state.fading = true;
+  return true;
+}
+inline bool setCpuFrequencyMhz(uint32_t freq) {
+  ++g_mockCpuFreqCalls;
+  if (!g_mockCpuFreqAccepted) return false;
+  g_mockCpuFreqMhz = freq;
+  return true;
+}
+
+// Arduino constants
+#ifndef OUTPUT
+#define OUTPUT 1
+#endif
+#ifndef INPUT
+#define INPUT 0
+#endif
+#ifndef INPUT_PULLUP
+#define INPUT_PULLUP 2
+#endif
+#ifndef INPUT_PULLDOWN
+#define INPUT_PULLDOWN 3
+#endif
+#ifndef HIGH
+#define HIGH 1
+#endif
+#ifndef LOW
+#define LOW 0
+#endif
+
+// Mock Serial for test output
+struct MockSerial : public Print {
+  void printf(const char*, ...);
+  void println(const char*);
+  void println(int v);
+  void println(unsigned long v);
+  void println(const String& s);
+  void println();
+  void print(const char*);
+  void print(int v);
+  void print(const String& s);
+  size_t write(uint8_t c) override {
+    putchar(c);
+    return 1;
+  }
+};
+
+extern MockSerial Serial;
+
+// Mock ESP class for ESP32-specific functions
+struct MockESP {
+  uint32_t getFreeHeap() { return 100000; }
+  uint32_t getHeapSize() { return 320000; }
+  uint32_t getMinFreeHeap() { return 80000; }
+  unsigned restartCount = 0;
+  void (*beforeRestart)() = nullptr;
+  void restart() { if (beforeRestart) beforeRestart(); ++restartCount; }
+  const char* getChipModel() { return "ESP32-S3"; }
+  unsigned getCpuFreqMHz() { return 240; }
+};
+
+extern MockESP ESP;
+
+// Host millis() declaration
+unsigned long millis();
+
+// Logging macros for test builds (bypass HWCDC dependency)
+#ifndef LOG_LEVEL
+#define LOG_LEVEL 2
+#endif
+#define ENABLE_SERIAL_LOG
+#define LOG_ERR(origin, format, ...) ::printf("[ERR] [%s] " format "\n", origin, ##__VA_ARGS__)
+#define LOG_WRN(origin, format, ...) ::printf("[WRN] [%s] " format "\n", origin, ##__VA_ARGS__)
+#define LOG_INF(origin, format, ...) ::printf("[INF] [%s] " format "\n", origin, ##__VA_ARGS__)
+#define LOG_DBG(origin, format, ...) ::printf("[DBG] [%s] " format "\n", origin, ##__VA_ARGS__)
+
+// logSerial reference for test builds — aliases to Serial mock
+static MockSerial& logSerial = Serial;
+
+// strcasecmp for Windows
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#endif

@@ -1,0 +1,23 @@
+{
+  "name": "InputManager",
+  "version": "1.1.0",
+  "description": "Button inputs",
+  "authors": [
+    {
+      "name": "CidVonHighwind",
+      "url": "https://github.com/CidVonHighwind"
+    }
+  ],
+  "dependencies": {
+    "AsyncTask": "*"
+  },
+  "platforms": "espressif32",
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include"
+  }
+}

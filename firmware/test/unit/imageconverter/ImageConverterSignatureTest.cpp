@@ -1,0 +1,66 @@
+#include <ImageConverter.h>
+#include <SDCardManager.h>
+#include <freertos/task.h>
+
+#include <cstdint>
+#include <string>
+
+#include "test_utils.h"
+
+namespace {
+
+const std::string kPngSignature("\x89PNG\r\n\x1A\n", 8);
+
+void registerSources() {
+  SdMan.reset();
+  SdMan.registerFile("/neutral.img", std::string("\xFF\xD8jpeg", 6));
+  SdMan.registerFile("/wrong.png", std::string("\xFF\xD8jpeg", 6));
+  SdMan.registerFile("/source.png.bin", kPngSignature + "payload");
+  SdMan.registerFile("/source.bmp.bin", "BMpayload");
+  SdMan.registerFile("/unknown.img", "GIF89a");
+}
+
+}  // namespace
+
+int main() {
+  TestUtils::TestRunner runner("ImageConverterSignature");
+  registerSources();
+
+  runner.expectTrue(ImageConverterFactory::detectFormat("/neutral.img") == ImageFormat::Jpeg,
+                    "JPEG signature ignores neutral extension");
+  runner.expectTrue(ImageConverterFactory::detectFormat("/wrong.png") == ImageFormat::Jpeg,
+                    "signature overrides misleading extension");
+  runner.expectTrue(ImageConverterFactory::detectFormat("/source.png.bin") == ImageFormat::Png,
+                    "PNG signature detected");
+  runner.expectTrue(ImageConverterFactory::detectFormat("/source.bmp.bin") == ImageFormat::Bmp,
+                    "BMP signature detected");
+  runner.expectTrue(ImageConverterFactory::detectFormat("/unknown.img") == ImageFormat::Unknown,
+                    "unknown signature rejected");
+  runner.expectTrue(ImageConverterFactory::detectFormat("/missing.img") == ImageFormat::Unknown,
+                    "missing source rejected");
+
+  ImageConvertConfig config;
+  config.logTag = "TEST";
+  mockTaskFreeStackBytes = 2048;
+  runner.expectFalse(ImageConverterFactory::convertToBmp("/wrong.png", "/low-stack.bmp", config),
+                     "2 KB of actual free stack prevents image conversion");
+  runner.expectFalse(SdMan.exists("/low-stack.bmp"), "low-stack image is not published");
+  mockTaskFreeStackBytes = 4096;
+
+  // Invalid BMP payload must be rejected by the real converter (not raw-copied)
+  runner.expectFalse(ImageConverterFactory::convertToBmp("/source.bmp.bin", "/copy.bmp", config),
+                     "invalid BMP payload is rejected");
+  runner.expectFalse(SdMan.exists("/copy.bmp"), "rejected BMP publishes nothing");
+
+  config.validateOutput = [](const std::string&) { return false; };
+  runner.expectFalse(ImageConverterFactory::convertToBmp("/neutral.img", "/rejected.bmp", config),
+                     "validator rejection fails conversion");
+  runner.expectFalse(SdMan.exists("/rejected.bmp"), "validator rejection does not publish final output");
+  runner.expectFalse(SdMan.exists("/rejected.bmp.part"), "validator rejection removes partial output");
+
+  runner.expectFalse(ImageConverterFactory::convertToBmp("/unknown.img", "/unknown.bmp", {}),
+                     "unknown source is not converted");
+  runner.expectFalse(SdMan.exists("/unknown.bmp"), "unknown source does not create output");
+
+  return runner.allPassed() ? 0 : 1;
+}

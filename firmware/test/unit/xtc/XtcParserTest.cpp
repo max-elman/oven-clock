@@ -1,0 +1,813 @@
+#include <HardwareSerial.h>
+#include <SDCardManager.h>
+#include <SdFat.h>
+#include <Xtc/XtcParser.h>
+#include <Xtc/XtcTypes.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
+
+#include "test_utils.h"
+
+static_assert(sizeof(xtc::XtcHeader) == 56);
+static_assert(sizeof(xtc::XtcHeader::chapterOffset) == sizeof(uint64_t));
+static_assert(offsetof(xtc::XtcHeader, hasChapters) == 0x0B);
+static_assert(offsetof(xtc::XtcHeader, pageTableOffset) == 0x18);
+static_assert(offsetof(xtc::XtcHeader, chapterOffset) == 0x30);
+
+// Helper: build a multi-page XTC file in memory
+static std::string buildMultiPageXtc(uint16_t width, uint16_t height, uint16_t pageCount,
+                                     uint32_t magic = xtc::XTC_MAGIC) {
+  constexpr size_t headerSize = sizeof(xtc::XtcHeader);
+  constexpr size_t titleSize = 128;
+  constexpr size_t authorSize = 64;
+  const size_t pageTableOffset = headerSize + titleSize + authorSize;
+  constexpr size_t pageEntrySize = sizeof(xtc::PageTableEntry);
+  const size_t pageDataStart = pageTableOffset + pageEntrySize * pageCount;
+
+  const bool is2bit = (magic == xtc::XTCH_MAGIC);
+  const size_t bitmapSize = is2bit ? xtc::xthBitmapSize(width, height) : xtc::xtgBitmapSize(width, height);
+  const size_t pageDataSize = sizeof(xtc::XtgPageHeader) + bitmapSize;
+  const size_t totalSize = pageDataStart + pageDataSize * pageCount;
+
+  std::string buf(totalSize, '\0');
+  auto* data = reinterpret_cast<uint8_t*>(&buf[0]);
+
+  auto* hdr = reinterpret_cast<xtc::XtcHeader*>(data);
+  hdr->magic = magic;
+  hdr->versionMajor = 1;
+  hdr->versionMinor = 0;
+  hdr->pageCount = pageCount;
+  hdr->hasMetadata = 1;
+  hdr->metadataOffset = headerSize;
+  hdr->pageTableOffset = pageTableOffset;
+  hdr->dataOffset = pageDataStart;
+
+  const char* title = "Multi Page Book";
+  memcpy(data + headerSize, title, strlen(title));
+
+  const uint32_t xtgMagic = is2bit ? xtc::XTH_MAGIC : xtc::XTG_MAGIC;
+
+  for (uint16_t i = 0; i < pageCount; i++) {
+    const size_t pageOffset = pageDataStart + pageDataSize * i;
+
+    auto* pte = reinterpret_cast<xtc::PageTableEntry*>(data + pageTableOffset + pageEntrySize * i);
+    pte->dataOffset = pageOffset;
+    pte->dataSize = static_cast<uint32_t>(pageDataSize);
+    pte->width = width;
+    pte->height = height;
+
+    auto* pageHdr = reinterpret_cast<xtc::XtgPageHeader*>(data + pageOffset);
+    pageHdr->magic = xtgMagic;
+    pageHdr->width = width;
+    pageHdr->height = height;
+    pageHdr->colorMode = 0;
+    pageHdr->compression = 0;
+    pageHdr->dataSize = static_cast<uint32_t>(bitmapSize);
+
+    // Fill bitmap with page-specific pattern for verification
+    uint8_t* bitmap = data + pageOffset + sizeof(xtc::XtgPageHeader);
+    memset(bitmap, static_cast<uint8_t>(i & 0xFF), bitmapSize);
+  }
+
+  return buf;
+}
+
+static std::string buildLegacyPageTableXtc() {
+  constexpr size_t pageTableOffset = offsetof(xtc::XtcHeader, chapterOffset);
+  constexpr size_t pageDataOffset = pageTableOffset + sizeof(xtc::PageTableEntry);
+  constexpr uint16_t width = 8;
+  constexpr uint16_t height = 1;
+  constexpr size_t bitmapSize = 1;
+  constexpr size_t pageDataSize = sizeof(xtc::XtgPageHeader) + bitmapSize;
+
+  std::string file(pageDataOffset + pageDataSize, '\0');
+  auto* data = reinterpret_cast<uint8_t*>(&file[0]);
+  auto* header = reinterpret_cast<xtc::XtcHeader*>(data);
+  header->magic = xtc::XTC_MAGIC;
+  header->versionMajor = 1;
+  header->pageCount = 1;
+  header->pageTableOffset = pageTableOffset;
+  header->dataOffset = pageDataOffset;
+
+  auto* entry = reinterpret_cast<xtc::PageTableEntry*>(data + pageTableOffset);
+  entry->dataOffset = pageDataOffset;
+  entry->dataSize = pageDataSize;
+  entry->width = width;
+  entry->height = height;
+
+  auto* pageHeader = reinterpret_cast<xtc::XtgPageHeader*>(data + pageDataOffset);
+  pageHeader->magic = xtc::XTG_MAGIC;
+  pageHeader->width = width;
+  pageHeader->height = height;
+  pageHeader->dataSize = bitmapSize;
+  return file;
+}
+
+static std::string buildRelocatedMetadataXtc() {
+  const std::string original = buildMultiPageXtc(8, 1, 1);
+  constexpr size_t oldPageTableOffset = sizeof(xtc::XtcHeader) + 128 + 64;
+  constexpr size_t oldPageDataOffset = oldPageTableOffset + sizeof(xtc::PageTableEntry);
+  constexpr size_t metadataOffset = sizeof(xtc::XtcHeader) + 32;
+  constexpr size_t newPageTableOffset = metadataOffset + 128 + 64;
+  constexpr size_t newPageDataOffset = newPageTableOffset + sizeof(xtc::PageTableEntry);
+
+  std::string file(original.size() + (newPageDataOffset - oldPageDataOffset), '\0');
+  memcpy(&file[0], original.data(), sizeof(xtc::XtcHeader));
+  memcpy(&file[newPageTableOffset], original.data() + oldPageTableOffset, sizeof(xtc::PageTableEntry));
+  memcpy(&file[newPageDataOffset], original.data() + oldPageDataOffset, original.size() - oldPageDataOffset);
+
+  auto* data = reinterpret_cast<uint8_t*>(&file[0]);
+  auto* header = reinterpret_cast<xtc::XtcHeader*>(data);
+  header->metadataOffset = metadataOffset;
+  header->pageTableOffset = newPageTableOffset;
+  header->dataOffset = newPageDataOffset;
+  auto* entry = reinterpret_cast<xtc::PageTableEntry*>(data + newPageTableOffset);
+  entry->dataOffset = newPageDataOffset;
+  memcpy(data + metadataOffset, "Relocated Title", 15);
+  memcpy(data + metadataOffset + 128, "Relocated Author", 16);
+  return file;
+}
+
+static std::string buildChapterXtc(size_t chapterCount, bool hasMetadata = true, int declaredCount = -1) {
+  constexpr size_t headerSize = sizeof(xtc::XtcHeader);
+  constexpr size_t metadataSize = 256;
+  constexpr size_t chapterSize = 96;
+  constexpr uint16_t width = 8;
+  constexpr uint16_t height = 1;
+  const size_t chapterOffset = headerSize + (hasMetadata ? metadataSize : 0);
+  const size_t pageTableOffset = chapterOffset + chapterCount * chapterSize;
+  const size_t pageDataOffset = pageTableOffset + sizeof(xtc::PageTableEntry);
+  const size_t bitmapSize = xtc::xtgBitmapSize(width, height);
+  const size_t pageDataSize = sizeof(xtc::XtgPageHeader) + bitmapSize;
+
+  std::string file(pageDataOffset + pageDataSize, '\0');
+  auto* data = reinterpret_cast<uint8_t*>(&file[0]);
+  auto* header = reinterpret_cast<xtc::XtcHeader*>(data);
+  header->magic = xtc::XTC_MAGIC;
+  header->versionMajor = 1;
+  header->pageCount = 1;
+  header->hasMetadata = hasMetadata ? 1 : 0;
+  header->hasChapters = 1;
+  header->metadataOffset = hasMetadata ? headerSize : 0;
+  header->pageTableOffset = pageTableOffset;
+  header->dataOffset = pageDataOffset;
+  header->chapterOffset = chapterOffset;
+
+  if (hasMetadata) {
+    memcpy(data + headerSize, "Chapter Book", 12);
+    const uint16_t encodedCount = declaredCount < 0 ? static_cast<uint16_t>(std::min<size_t>(chapterCount, UINT16_MAX))
+                                                    : static_cast<uint16_t>(declaredCount);
+    memcpy(data + headerSize + xtc::METADATA_CHAPTER_COUNT_OFFSET, &encodedCount, sizeof(encodedCount));
+  }
+
+  for (size_t i = 0; i < chapterCount; i++) {
+    uint8_t* chapter = data + chapterOffset + i * chapterSize;
+    snprintf(reinterpret_cast<char*>(chapter), 80, "Chapter %zu", i + 1);
+    const uint16_t page = 1;
+    memcpy(chapter + 0x50, &page, sizeof(page));
+    memcpy(chapter + 0x52, &page, sizeof(page));
+  }
+
+  auto* entry = reinterpret_cast<xtc::PageTableEntry*>(data + pageTableOffset);
+  entry->dataOffset = pageDataOffset;
+  entry->dataSize = pageDataSize;
+  entry->width = width;
+  entry->height = height;
+
+  auto* pageHeader = reinterpret_cast<xtc::XtgPageHeader*>(data + pageDataOffset);
+  pageHeader->magic = xtc::XTG_MAGIC;
+  pageHeader->width = width;
+  pageHeader->height = height;
+  pageHeader->dataSize = bitmapSize;
+  return file;
+}
+
+int main() {
+  TestUtils::TestRunner runner("XtcParser Tests");
+
+  runner.expectEq(size_t{16}, xtc::xthPlaneSize(8, 9), "XTH 8x9 plane pads every column");
+  runner.expectEq(size_t{48}, xtc::xthBitmapSize(8, 17), "XTH 8x17 bitmap has two padded planes");
+
+  for (const uint32_t pageContainer : {xtc::XTC_MAGIC, xtc::XTCH_MAGIC}) {
+    for (const uint32_t container : {xtc::XTC_MAGIC, xtc::XTCH_MAGIC}) {
+      SdMan.clearFiles();
+      std::string data = buildMultiPageXtc(8, 9, 2, pageContainer);
+      auto* header = reinterpret_cast<xtc::XtcHeader*>(data.data());
+      header->magic = container;
+      const uint8_t depth = pageContainer == xtc::XTCH_MAGIC ? 2 : 1;
+      const size_t size = depth == 2 ? xtc::xthBitmapSize(8, 9) : xtc::xtgBitmapSize(8, 9);
+      SdMan.registerFile("/depth.xtc", data);
+      xtc::XtcParser parser;
+      runner.expectTrue(parser.open("/depth.xtc") == xtc::XtcError::OK, "page depth: container opens");
+      runner.expectEq(depth, parser.getBitDepth(), "page depth: page magic selects depth");
+      xtc::PageInfo info;
+      runner.expectTrue(parser.getPageInfo(1, info), "page depth: later page available");
+      runner.expectEq(depth, info.bitDepth, "page depth: page info uses detected depth");
+      std::vector<uint8_t> expected(size, 1);
+      std::vector<uint8_t> actual(size, 0);
+      runner.expectEq(size, parser.loadPage(1, actual.data(), actual.size()), "page depth: exact bitmap size");
+      runner.expectTrue(actual == expected, "page depth: exact bitmap bytes");
+      actual.clear();
+      runner.expectTrue(parser.loadPageStreaming(1, [&](const uint8_t* bytes, size_t count, size_t offset) {
+        if (offset != actual.size()) return false;
+        actual.insert(actual.end(), bytes, bytes + count);
+        return true;
+      }, 3) == xtc::XtcError::OK, "page depth: streamed read succeeds");
+      runner.expectTrue(actual == expected, "page depth: stream preserves bitmap bytes");
+      if (depth == 2) {
+        std::vector<uint8_t> first, second;
+        runner.expectTrue(parser.loadPagePlanePairs(1, [&](const uint8_t* p1, const uint8_t* p2,
+                                                         size_t count, size_t offset) {
+          if (offset != first.size()) return false;
+          first.insert(first.end(), p1, p1 + count);
+          second.insert(second.end(), p2, p2 + count);
+          return true;
+        }, 3) == xtc::XtcError::OK, "page depth: paired planes succeed");
+        runner.expectTrue(first == std::vector<uint8_t>(size / 2, 1) && second == first,
+                          "page depth: paired planes preserve bytes");
+      }
+    }
+  }
+
+  for (int fault = 0; fault < 5; ++fault) {
+    SdMan.clearFiles();
+    std::string data = buildMultiPageXtc(8, 9, 1, xtc::XTCH_MAGIC);
+    auto* header = reinterpret_cast<xtc::XtcHeader*>(data.data());
+    auto* entry = reinterpret_cast<xtc::PageTableEntry*>(&data[header->pageTableOffset]);
+    auto* page = reinterpret_cast<xtc::XtgPageHeader*>(&data[entry->dataOffset]);
+    if (fault == 0) page->magic = 0;
+    if (fault == 1) entry->dataOffset = UINT64_MAX;
+    if (fault == 2) data.resize(entry->dataOffset + sizeof(xtc::XtgPageHeader) - 1);
+    if (fault == 3) data.pop_back();
+    if (fault == 4) page->compression = 1;
+    SdMan.registerFile("/bad-first.xtc", data);
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/bad-first.xtc") != xtc::XtcError::OK,
+                      "page depth: invalid first page cannot establish a format");
+    runner.expectFalse(parser.isOpen(), "page depth: invalid first page leaves parser closed");
+  }
+
+  for (const uint32_t container : {xtc::XTC_MAGIC, xtc::XTCH_MAGIC}) {
+    SdMan.clearFiles();
+    std::string data = buildMultiPageXtc(8, 8, 2, container);
+    auto* header = reinterpret_cast<xtc::XtcHeader*>(data.data());
+    auto* entries = reinterpret_cast<xtc::PageTableEntry*>(&data[header->pageTableOffset]);
+    auto* page = reinterpret_cast<xtc::XtgPageHeader*>(&data[entries[1].dataOffset]);
+    page->magic = container == xtc::XTC_MAGIC ? xtc::XTH_MAGIC : xtc::XTG_MAGIC;
+    SdMan.registerFile("/mixed.xtc", data);
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/mixed.xtc") == xtc::XtcError::OK, "mixed depth: first page opens");
+    uint8_t buffer[16] = {};
+    runner.expectEq(size_t{0}, parser.loadPage(1, buffer, sizeof(buffer)), "mixed depth: bitmap rejected");
+    bool called = false;
+    runner.expectTrue(parser.loadPageStreaming(1, [&](const uint8_t*, size_t, size_t) {
+      called = true;
+      return true;
+    }) == xtc::XtcError::INVALID_MAGIC, "mixed depth: stream rejected");
+    if (container == xtc::XTCH_MAGIC) {
+      runner.expectTrue(parser.loadPagePlanePairs(1, [&](const uint8_t*, const uint8_t*, size_t, size_t) {
+        called = true;
+        return true;
+      }) == xtc::XtcError::INVALID_MAGIC, "mixed depth: paired planes rejected");
+    }
+    runner.expectFalse(called, "mixed depth: no invalid bytes reach consumers");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/legacy_table.xtc", buildLegacyPageTableXtc());
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/legacy_table.xtc") == xtc::XtcError::OK,
+                      "legacy_table: table at 0x30 remains supported");
+  }
+
+  {
+    SdMan.clearFiles();
+    std::string data = buildLegacyPageTableXtc();
+    auto* header = reinterpret_cast<xtc::XtcHeader*>(&data[0]);
+    header->pageTableOffset = offsetof(xtc::XtcHeader, chapterOffset) - 1;
+    SdMan.registerFile("/table_in_header.xtc", data);
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/table_in_header.xtc") == xtc::XtcError::CORRUPTED_HEADER,
+                      "table_bounds: rejects table before legacy header boundary");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/relocated_metadata.xtc", buildRelocatedMetadataXtc());
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/relocated_metadata.xtc") == xtc::XtcError::OK, "metadata_offset: parser opens");
+    runner.expectEq(std::string("Relocated Title"), parser.getTitle(), "metadata_offset: title uses declared offset");
+    runner.expectEq(std::string("Relocated Author"), parser.getAuthor(),
+                    "metadata_offset: author follows relocated title");
+  }
+
+  {
+    constexpr uint16_t width = 2;
+    constexpr uint16_t height = 9;
+    const size_t planeSize = xtc::xthPlaneSize(width, height);
+    std::vector<uint8_t> bitmap(planeSize * 2, 0);
+    const size_t byteOffset = xtc::xthColumnBytes(height) + 1;
+    bitmap[byteOffset] = 0x80;
+    runner.expectEq(static_cast<uint8_t>(2),
+                    xtc::xthPixelValue(bitmap.data(), bitmap.data() + planeSize, width, height, 0, 8),
+                    "XTH pixel lookup reaches padded final row");
+  }
+
+  // Test 1: getPageInfo lazy loading - multi-page random access
+  {
+    SdMan.clearFiles();
+    const uint16_t w = 16, h = 8;
+    std::string xtcData = buildMultiPageXtc(w, h, 5);
+    SdMan.registerFile("/multi.xtc", xtcData);
+
+    xtc::XtcParser parser;
+    auto err = parser.open("/multi.xtc");
+    runner.expectTrue(err == xtc::XtcError::OK, "lazy_multi: opens successfully");
+    runner.expectEq(static_cast<uint16_t>(5), parser.getPageCount(), "lazy_multi: page count");
+
+    // Access pages in non-sequential order
+    xtc::PageInfo info;
+
+    bool ok4 = parser.getPageInfo(4, info);
+    runner.expectTrue(ok4, "lazy_multi: page 4 accessible");
+    runner.expectEq(w, info.width, "lazy_multi: page 4 width");
+    runner.expectEq(h, info.height, "lazy_multi: page 4 height");
+
+    bool ok0 = parser.getPageInfo(0, info);
+    runner.expectTrue(ok0, "lazy_multi: page 0 after page 4");
+    runner.expectEq(w, info.width, "lazy_multi: page 0 width");
+
+    bool ok2 = parser.getPageInfo(2, info);
+    runner.expectTrue(ok2, "lazy_multi: page 2 random access");
+    runner.expectEq(w, info.width, "lazy_multi: page 2 width");
+
+    parser.close();
+  }
+
+  // Test 2: getPageInfo out of range
+  {
+    SdMan.clearFiles();
+    std::string xtcData = buildMultiPageXtc(16, 8, 3);
+    SdMan.registerFile("/small.xtc", xtcData);
+
+    xtc::XtcParser parser;
+    parser.open("/small.xtc");
+
+    xtc::PageInfo info;
+    bool ok = parser.getPageInfo(3, info);
+    runner.expectFalse(ok, "out_of_range: page 3 of 3 fails");
+
+    ok = parser.getPageInfo(100, info);
+    runner.expectFalse(ok, "out_of_range: page 100 fails");
+
+    parser.close();
+  }
+
+  // Test 3: loadPage with lazy page table
+  {
+    SdMan.clearFiles();
+    const uint16_t w = 8, h = 1;
+    std::string xtcData = buildMultiPageXtc(w, h, 3);
+    SdMan.registerFile("/load.xtc", xtcData);
+
+    xtc::XtcParser parser;
+    parser.open("/load.xtc");
+
+    const size_t bitmapSize = ((w + 7) / 8) * h;
+    std::vector<uint8_t> buf(bitmapSize + 256);
+
+    // Load page 2 (pattern byte = 2)
+    size_t bytes = parser.loadPage(2, buf.data(), buf.size());
+    runner.expectTrue(bytes > 0, "load_lazy: page 2 loads data");
+    runner.expectEq(static_cast<uint8_t>(2), buf[0], "load_lazy: page 2 pattern correct");
+
+    // Load page 0 (pattern byte = 0)
+    bytes = parser.loadPage(0, buf.data(), buf.size());
+    runner.expectTrue(bytes > 0, "load_lazy: page 0 loads data");
+    runner.expectEq(static_cast<uint8_t>(0), buf[0], "load_lazy: page 0 pattern correct");
+
+    // Out of range
+    bytes = parser.loadPage(3, buf.data(), buf.size());
+    runner.expectEq(static_cast<size_t>(0), bytes, "load_lazy: out of range returns 0");
+
+    parser.close();
+  }
+
+  // Test 4: MAX_XTC_PAGE_COUNT validation
+  {
+    SdMan.clearFiles();
+
+    // Build a header-only file with page count exceeding the limit
+    constexpr size_t headerSize = sizeof(xtc::XtcHeader);
+    constexpr size_t titleSize = 128;
+    constexpr size_t authorSize = 64;
+    const size_t minSize = headerSize + titleSize + authorSize + sizeof(xtc::PageTableEntry);
+    std::string buf(minSize, '\0');
+    auto* data = reinterpret_cast<uint8_t*>(&buf[0]);
+
+    auto* hdr = reinterpret_cast<xtc::XtcHeader*>(data);
+    hdr->magic = xtc::XTC_MAGIC;
+    hdr->versionMajor = 1;
+    hdr->versionMinor = 0;
+    hdr->pageCount = xtc::MAX_XTC_PAGE_COUNT + 1;  // Exceeds limit
+    hdr->hasMetadata = 1;
+    hdr->pageTableOffset = headerSize + titleSize + authorSize;
+    hdr->dataOffset = hdr->pageTableOffset + sizeof(xtc::PageTableEntry);
+
+    SdMan.registerFile("/too_many.xtc", buf);
+
+    xtc::XtcParser parser;
+    auto err = parser.open("/too_many.xtc");
+    runner.expectTrue(err == xtc::XtcError::CORRUPTED_HEADER, "max_pages: rejects page count > MAX");
+
+    parser.close();
+  }
+
+  // Test 5: MAX_XTC_PAGE_COUNT at boundary (exactly at limit is OK)
+  {
+    SdMan.clearFiles();
+
+    // Build a minimal valid header with exactly MAX_XTC_PAGE_COUNT pages
+    // We don't need actual page data for this - just enough for the header check to pass
+    // and the page table validation to have enough size
+    constexpr size_t headerSize = sizeof(xtc::XtcHeader);
+    constexpr size_t titleSize = 128;
+    constexpr size_t authorSize = 64;
+    const size_t pageTableOffset = headerSize + titleSize + authorSize;
+    const size_t pageTableSize = static_cast<size_t>(xtc::MAX_XTC_PAGE_COUNT) * sizeof(xtc::PageTableEntry);
+    const size_t pageDataStart = pageTableOffset + pageTableSize;
+
+    // Need at least one valid page entry with bitmap for readPageTable to succeed
+    const uint16_t w = 8, h = 1;
+    const size_t bitmapSize = 1;
+    const size_t pageDataSize = sizeof(xtc::XtgPageHeader) + bitmapSize;
+    const size_t totalSize = pageDataStart + pageDataSize;
+
+    std::string buf(totalSize, '\0');
+    auto* data = reinterpret_cast<uint8_t*>(&buf[0]);
+
+    auto* hdr = reinterpret_cast<xtc::XtcHeader*>(data);
+    hdr->magic = xtc::XTC_MAGIC;
+    hdr->versionMajor = 1;
+    hdr->versionMinor = 0;
+    hdr->pageCount = xtc::MAX_XTC_PAGE_COUNT;
+    hdr->hasMetadata = 1;
+    hdr->pageTableOffset = pageTableOffset;
+    hdr->dataOffset = pageDataStart;
+
+    // Fill first page entry so readPageTable can read default dimensions
+    auto* pte = reinterpret_cast<xtc::PageTableEntry*>(data + pageTableOffset);
+    pte->dataOffset = pageDataStart;
+    pte->dataSize = static_cast<uint32_t>(pageDataSize);
+    pte->width = w;
+    pte->height = h;
+
+    auto* pageHdr = reinterpret_cast<xtc::XtgPageHeader*>(data + pageDataStart);
+    pageHdr->magic = xtc::XTG_MAGIC;
+    pageHdr->width = w;
+    pageHdr->height = h;
+    pageHdr->dataSize = static_cast<uint32_t>(bitmapSize);
+
+    SdMan.registerFile("/max_pages.xtc", buf);
+
+    xtc::XtcParser parser;
+    auto err = parser.open("/max_pages.xtc");
+    runner.expectTrue(err == xtc::XtcError::OK, "max_boundary: accepts exactly MAX page count");
+    runner.expectEq(xtc::MAX_XTC_PAGE_COUNT, parser.getPageCount(), "max_boundary: correct count");
+
+    parser.close();
+  }
+
+  // Test 6: Page table extends beyond file size
+  {
+    SdMan.clearFiles();
+
+    constexpr size_t headerSize = sizeof(xtc::XtcHeader);
+    constexpr size_t titleSize = 128;
+    constexpr size_t authorSize = 64;
+    const size_t pageTableOffset = headerSize + titleSize + authorSize;
+
+    // File is too short for the declared page table
+    const size_t totalSize = pageTableOffset + 4;  // Way too small for even 1 page entry (16 bytes)
+    std::string buf(totalSize, '\0');
+    auto* data = reinterpret_cast<uint8_t*>(&buf[0]);
+
+    auto* hdr = reinterpret_cast<xtc::XtcHeader*>(data);
+    hdr->magic = xtc::XTC_MAGIC;
+    hdr->versionMajor = 1;
+    hdr->versionMinor = 0;
+    hdr->pageCount = 10;  // Claims 10 pages but file is tiny
+    hdr->hasMetadata = 1;
+    hdr->pageTableOffset = pageTableOffset;
+    hdr->dataOffset = pageTableOffset + 160;
+
+    SdMan.registerFile("/truncated.xtc", buf);
+
+    xtc::XtcParser parser;
+    auto err = parser.open("/truncated.xtc");
+    runner.expectTrue(err == xtc::XtcError::CORRUPTED_HEADER, "truncated_table: rejects file too small for page table");
+
+    parser.close();
+  }
+
+  // Test 7: Default dimensions from first page
+  {
+    SdMan.clearFiles();
+    const uint16_t w = 480, h = 800;
+    std::string xtcData = buildMultiPageXtc(w, h, 2);
+    SdMan.registerFile("/dims.xtc", xtcData);
+
+    xtc::XtcParser parser;
+    parser.open("/dims.xtc");
+
+    runner.expectEq(w, parser.getWidth(), "default_dims: width from first page");
+    runner.expectEq(h, parser.getHeight(), "default_dims: height from first page");
+    runner.expectEq(static_cast<uint8_t>(1), parser.getBitDepth(), "default_dims: 1-bit depth");
+
+    parser.close();
+  }
+
+  // Test 8: 2-bit XTCH lazy loading
+  {
+    SdMan.clearFiles();
+    const uint16_t w = 8, h = 8;
+    std::string xtcData = buildMultiPageXtc(w, h, 3, xtc::XTCH_MAGIC);
+    SdMan.registerFile("/multi.xtch", xtcData);
+
+    xtc::XtcParser parser;
+    auto err = parser.open("/multi.xtch");
+    runner.expectTrue(err == xtc::XtcError::OK, "xtch_lazy: opens XTCH");
+    runner.expectEq(static_cast<uint8_t>(2), parser.getBitDepth(), "xtch_lazy: 2-bit depth");
+
+    xtc::PageInfo info;
+    bool ok = parser.getPageInfo(1, info);
+    runner.expectTrue(ok, "xtch_lazy: page 1 accessible");
+    runner.expectEq(static_cast<uint8_t>(2), info.bitDepth, "xtch_lazy: page info has 2-bit depth");
+    runner.expectEq(w, info.width, "xtch_lazy: page 1 width");
+    runner.expectEq(h, info.height, "xtch_lazy: page 1 height");
+
+    parser.close();
+  }
+
+  // Test 9: loadPageStreaming with lazy page table
+  {
+    SdMan.clearFiles();
+    const uint16_t w = 8, h = 1;
+    std::string xtcData = buildMultiPageXtc(w, h, 2);
+    SdMan.registerFile("/stream.xtc", xtcData);
+
+    xtc::XtcParser parser;
+    parser.open("/stream.xtc");
+
+    std::vector<uint8_t> collected;
+    auto err = parser.loadPageStreaming(1, [&](const uint8_t* data, size_t size, size_t offset) {
+      (void)offset;
+      collected.insert(collected.end(), data, data + size);
+      return true;
+    });
+    runner.expectTrue(err == xtc::XtcError::OK, "streaming_lazy: page 1 streams OK");
+    runner.expectTrue(collected.size() > 0, "streaming_lazy: received data");
+
+    // Out of range
+    err = parser.loadPageStreaming(2, [](const uint8_t*, size_t, size_t) { return true; });
+    runner.expectTrue(err == xtc::XtcError::PAGE_OUT_OF_RANGE, "streaming_lazy: out of range error");
+
+    err = parser.loadPageStreaming(0, [](const uint8_t*, size_t, size_t) { return false; });
+    runner.expectTrue(err == xtc::XtcError::READ_ERROR, "streaming: callback failure propagates");
+
+    err = parser.loadPageStreaming(0, [](const uint8_t*, size_t, size_t) { return true; }, 1,
+                                   []() { return true; });
+    runner.expectTrue(err == xtc::XtcError::CANCELLED, "streaming: cancellation propagates");
+
+    parser.close();
+  }
+
+  // Test 10: paired XTCH planes stream with matching offsets and bounded scratch
+  {
+    constexpr uint16_t width = 8;
+    constexpr uint16_t height = 8;
+    constexpr size_t planeSize = xtc::xthPlaneSize(width, height);
+    constexpr size_t pageTableOffset = sizeof(xtc::XtcHeader) + 128 + 64;
+
+    SdMan.clearFiles();
+    std::string data = buildMultiPageXtc(width, height, 1, xtc::XTCH_MAGIC);
+    auto* entry = reinterpret_cast<xtc::PageTableEntry*>(&data[pageTableOffset]);
+    uint8_t* bitmap = reinterpret_cast<uint8_t*>(&data[entry->dataOffset + sizeof(xtc::XtgPageHeader)]);
+    std::vector<uint8_t> expectedPlane1(planeSize);
+    std::vector<uint8_t> expectedPlane2(planeSize);
+    for (size_t i = 0; i < planeSize; ++i) {
+      expectedPlane1[i] = static_cast<uint8_t>(0x11 + i);
+      expectedPlane2[i] = static_cast<uint8_t>(0x91 + i);
+      bitmap[i] = expectedPlane1[i];
+      bitmap[planeSize + i] = expectedPlane2[i];
+    }
+    SdMan.registerFile("/pairs.xtch", data);
+
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/pairs.xtch") == xtc::XtcError::OK, "plane_pairs: parser opens");
+    std::vector<uint8_t> actualPlane1;
+    std::vector<uint8_t> actualPlane2;
+    std::vector<size_t> offsets;
+    const auto pairedResult = parser.loadPagePlanePairs(
+        0,
+        [&](const uint8_t* plane1, const uint8_t* plane2, const size_t size, const size_t offset) {
+          offsets.push_back(offset);
+          actualPlane1.insert(actualPlane1.end(), plane1, plane1 + size);
+          actualPlane2.insert(actualPlane2.end(), plane2, plane2 + size);
+          return true;
+        },
+        3);
+    runner.expectTrue(pairedResult == xtc::XtcError::OK, "plane_pairs: streams matching chunks");
+    runner.expectTrue(actualPlane1 == expectedPlane1 && actualPlane2 == expectedPlane2,
+                      "plane_pairs: returns corresponding plane bytes");
+    runner.expectTrue(offsets == std::vector<size_t>({0, 3, 6}), "plane_pairs: reports offsets and final chunk");
+
+    runner.expectTrue(parser.loadPagePlanePairs(0, [](const uint8_t*, const uint8_t*, size_t, size_t) { return true; },
+                                                1, []() { return true; }) == xtc::XtcError::CANCELLED,
+                      "plane_pairs: cancellation propagates");
+    runner.expectTrue(parser.loadPagePlanePairs(
+                          0, [](const uint8_t*, const uint8_t*, size_t, size_t) { return false; }) ==
+                          xtc::XtcError::READ_ERROR,
+                      "plane_pairs: callback rejection propagates");
+
+    SdMan.registerFile("/one-bit-pairs.xtc", buildMultiPageXtc(width, height, 1));
+    xtc::XtcParser oneBitParser;
+    oneBitParser.open("/one-bit-pairs.xtc");
+    runner.expectTrue(oneBitParser.loadPagePlanePairs(
+                          0, [](const uint8_t*, const uint8_t*, size_t, size_t) { return true; }) ==
+                          xtc::XtcError::CORRUPTED_HEADER,
+                      "plane_pairs: rejects one-bit pages");
+  }
+
+  {
+    constexpr size_t pageTableOffset = sizeof(xtc::XtcHeader) + 128 + 64;
+    SdMan.clearFiles();
+    std::string malformed = buildMultiPageXtc(8, 8, 2, xtc::XTCH_MAGIC);
+    auto* entry = reinterpret_cast<xtc::PageTableEntry*>(&malformed[pageTableOffset]) + 1;
+    auto* pageHeader = reinterpret_cast<xtc::XtgPageHeader*>(&malformed[entry->dataOffset]);
+    pageHeader->dataSize++;
+    SdMan.registerFile("/malformed-pairs.xtch", malformed);
+    xtc::XtcParser malformedParser;
+    malformedParser.open("/malformed-pairs.xtch");
+    runner.expectTrue(malformedParser.loadPagePlanePairs(
+                          1, [](const uint8_t*, const uint8_t*, size_t, size_t) { return true; }) ==
+                          xtc::XtcError::CORRUPTED_HEADER,
+                      "plane_pairs: rejects inconsistent bitmap size");
+
+    std::string truncated = buildMultiPageXtc(8, 8, 2, xtc::XTCH_MAGIC);
+    truncated.pop_back();
+    SdMan.registerFile("/truncated-pairs.xtch", truncated);
+    xtc::XtcParser truncatedParser;
+    truncatedParser.open("/truncated-pairs.xtch");
+    runner.expectTrue(truncatedParser.loadPagePlanePairs(
+                          1, [](const uint8_t*, const uint8_t*, size_t, size_t) { return true; }) ==
+                          xtc::XtcError::CORRUPTED_HEADER,
+                      "plane_pairs: rejects truncated second plane");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/full-pairs.xtch", buildMultiPageXtc(480, 800, 1, xtc::XTCH_MAGIC));
+    xtc::XtcParser parser;
+    parser.open("/full-pairs.xtch");
+    testSetLargestFreeBlock(10239);
+    const auto result = parser.loadPagePlanePairs(
+        0, [](const uint8_t*, const uint8_t*, size_t, size_t) { return true; }, 4096);
+    testResetLargestFreeBlock();
+    runner.expectTrue(result == xtc::XtcError::MEMORY_ERROR,
+                      "plane_pairs: combined scratch obeys allocation gate");
+  }
+
+  // Test 11: page table and embedded dimensions must agree
+  {
+    SdMan.clearFiles();
+    std::string data = buildMultiPageXtc(16, 8, 1);
+    constexpr size_t pageTableOffset = sizeof(xtc::XtcHeader) + 128 + 64;
+    auto* entry = reinterpret_cast<xtc::PageTableEntry*>(&data[pageTableOffset]);
+    auto* pageHeader = reinterpret_cast<xtc::XtgPageHeader*>(&data[entry->dataOffset]);
+    pageHeader->width = 8;
+    SdMan.registerFile("/mismatch.xtc", data);
+
+    xtc::XtcParser parser;
+    parser.open("/mismatch.xtc");
+    std::vector<uint8_t> buffer(32);
+    runner.expectEq(size_t{0}, parser.loadPage(0, buffer.data(), buffer.size()),
+                    "page_validation: rejects table/header dimension mismatch");
+  }
+
+  // Test 11: compressed pages are unsupported
+  {
+    SdMan.clearFiles();
+    std::string data = buildMultiPageXtc(8, 8, 1);
+    constexpr size_t pageTableOffset = sizeof(xtc::XtcHeader) + 128 + 64;
+    auto* entry = reinterpret_cast<xtc::PageTableEntry*>(&data[pageTableOffset]);
+    auto* pageHeader = reinterpret_cast<xtc::XtgPageHeader*>(&data[entry->dataOffset]);
+    pageHeader->compression = 1;
+    SdMan.registerFile("/compressed.xtc", data);
+
+    xtc::XtcParser parser;
+    parser.open("/compressed.xtc");
+    std::vector<uint8_t> buffer(32);
+    runner.expectEq(size_t{0}, parser.loadPage(0, buffer.data(), buffer.size()),
+                    "page_validation: rejects unsupported compression");
+  }
+
+  // Test 12: embedded and table data sizes are validated
+  {
+    SdMan.clearFiles();
+    std::string data = buildMultiPageXtc(8, 8, 1);
+    constexpr size_t pageTableOffset = sizeof(xtc::XtcHeader) + 128 + 64;
+    auto* entry = reinterpret_cast<xtc::PageTableEntry*>(&data[pageTableOffset]);
+    auto* pageHeader = reinterpret_cast<xtc::XtgPageHeader*>(&data[entry->dataOffset]);
+    pageHeader->dataSize++;
+    SdMan.registerFile("/wrong_size.xtc", data);
+
+    xtc::XtcParser parser;
+    parser.open("/wrong_size.xtc");
+    std::vector<uint8_t> buffer(32);
+    runner.expectEq(size_t{0}, parser.loadPage(0, buffer.data(), buffer.size()),
+                    "page_validation: rejects incorrect embedded data size");
+
+    data = buildMultiPageXtc(8, 8, 1);
+    entry = reinterpret_cast<xtc::PageTableEntry*>(&data[pageTableOffset]);
+    entry->dataSize = sizeof(xtc::XtgPageHeader);
+    SdMan.registerFile("/short_entry.xtc", data);
+    parser.close();
+    parser.open("/short_entry.xtc");
+    runner.expectEq(size_t{0}, parser.loadPage(0, buffer.data(), buffer.size()),
+                    "page_validation: rejects truncated page entry");
+  }
+
+  // Test 13: invalid streaming arguments fail before allocation
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/zero_chunk.xtc", buildMultiPageXtc(8, 8, 1));
+    xtc::XtcParser parser;
+    parser.open("/zero_chunk.xtc");
+    const auto err = parser.loadPageStreaming(0, [](const uint8_t*, size_t, size_t) { return true; }, 0);
+    runner.expectTrue(err == xtc::XtcError::CORRUPTED_HEADER, "streaming: rejects zero chunk size");
+  }
+
+  // Test 14: chapter parsing is bounded, lazy, and close releases capacity
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/chapters.xtc", buildChapterXtc(501));
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/chapters.xtc") == xtc::XtcError::OK, "chapters: parser opens");
+    runner.expectEq(size_t{0}, parser.getLoadedChapterCountForTest(), "chapters: not loaded during open");
+    runner.expectTrue(parser.hasChapters(), "chapters: lazy load succeeds");
+    runner.expectEq(size_t{500}, parser.getChapters().size(), "chapters: parser caps entries at 500");
+    parser.close();
+    runner.expectEq(size_t{0}, parser.getChapters().capacity(), "chapters: close releases vector capacity");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/declared_chapters.xtc", buildChapterXtc(10, true, 5));
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/declared_chapters.xtc") == xtc::XtcError::OK, "declared_chapters: parser opens");
+    runner.expectTrue(parser.hasChapters(), "declared_chapters: chapters load");
+    runner.expectEq(size_t{5}, parser.getChapters().size(), "declared_chapters: metadata limits records");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/unspecified_chapters.xtc", buildChapterXtc(10, true, 0));
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/unspecified_chapters.xtc") == xtc::XtcError::OK,
+                      "unspecified_chapters: parser opens");
+    runner.expectTrue(parser.hasChapters(), "unspecified_chapters: chapters load");
+    runner.expectEq(size_t{10}, parser.getChapters().size(), "unspecified_chapters: zero keeps all records");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/no_metadata_chapters.xtc", buildChapterXtc(2, false));
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/no_metadata_chapters.xtc") == xtc::XtcError::OK,
+                      "metadata_less_chapters: parser opens");
+    runner.expectTrue(parser.hasChapters(), "metadata_less_chapters: chapters load");
+    runner.expectEq(size_t{2}, parser.getChapters().size(), "metadata_less_chapters: count");
+  }
+
+  {
+    SdMan.clearFiles();
+    SdMan.registerFile("/low_heap_chapters.xtc", buildChapterXtc(500));
+    testSetLargestFreeBlock(1024);
+    xtc::XtcParser parser;
+    runner.expectTrue(parser.open("/low_heap_chapters.xtc") == xtc::XtcError::OK,
+                      "low_heap_chapters: optional TOC does not block open");
+    runner.expectFalse(parser.hasChapters(), "low_heap_chapters: TOC omitted");
+    runner.expectEq(size_t{0}, parser.getChapters().size(), "low_heap_chapters: no partial TOC retained");
+    testResetLargestFreeBlock();
+    runner.expectFalse(parser.hasChapters(), "low_heap_chapters: failed lazy load is not retried");
+  }
+
+  return runner.allPassed() ? 0 : 1;
+}

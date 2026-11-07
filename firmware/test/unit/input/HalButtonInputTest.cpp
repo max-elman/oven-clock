@@ -1,0 +1,203 @@
+#include <InputManager.h>
+#include <MappedInputManager.h>
+#include <TargetConfig.h>
+#include <freertos/task.h>
+
+#include <atomic>
+#include <thread>
+
+#include "hal/Input.h"
+#include "test_utils.h"
+#if PAPYRIX_TARGET_MURPHY_M4
+#include "MurphyM4TouchFixture.h"
+#endif
+
+InputManager inputManager;
+MappedInputManager mappedInputManager(inputManager);
+
+int main() {
+  using namespace papyrix;
+  TestUtils::TestRunner runner("HAL button release during refresh");
+#if PAPYRIX_TARGET_MURPHY_M4
+  MurphyM4TouchFixture fixture(false);
+#endif
+  static int pressedPin = -1;
+  constexpr int kPowerPin = PAPYRIX_TARGET_MURPHY_M4 ? 0 : PAPYRIX_TARGET_STICKY ? 4 : 3;
+  testSetDigitalReadHook([](int pin) { return pin == pressedPin ? LOW : HIGH; });
+  testSetManualMillis(100);
+  inputManager.begin();
+  EventQueue queue;
+  hal::Input input;
+  enableTaskCreateFailureGate();
+  std::atomic<bool> initialized{false};
+  std::thread initThread([&] { initialized = input.init(queue).ok(); });
+  waitForTaskCreateBlocked();
+  releaseTaskCreateFailureGate();
+  initThread.join();
+#if PAPYRIX_TARGET_MURPHY_M4
+  fixture.waitPaused();
+#endif
+  runner.expectTrue(initialized.load(), "input initializes when sampler task creation fails");
+  inputManager.stopSampling();
+  const auto sample = [&](unsigned long time) {
+    testManualMillisValue = time;
+    inputManager.update();
+    input.poll();
+  };
+  Event event{};
+  sample(100);
+  pressedPin = PAPYRIX_TARGET_MURPHY_M4 ? 1 : PAPYRIX_TARGET_STICKY ? 5 : 7;
+  sample(110);
+  runner.expectFalse(queue.pop(event), "press still requires debounce");
+  sample(140);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Up,
+                    "stable press moves up once");
+  testManualMillisValue = 160;
+  input.resetIdleTimer();
+  runner.expectEq(uint32_t{0}, input.idleTimeMs(), "keep-awake resets the sleep timer");
+  runner.expectEq(uint32_t{20}, input.userIdleTimeMs(), "keep-awake does not reset physical input activity");
+  sample(840);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonRepeat && event.button == Button::Up,
+                    "held direction still repeats");
+  runner.expectEq(uint32_t{0}, input.userIdleTimeMs(), "a repeated page action keeps the light active");
+  pressedPin = -1;
+  sample(1240);
+  runner.expectFalse(queue.pop(event), "release during refresh cannot emit a trailing repeat");
+  sample(1265);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonRelease && event.button == Button::Up,
+                    "release completes after debounce");
+
+  pressedPin = PAPYRIX_TARGET_MURPHY_M4 ? 2 : PAPYRIX_TARGET_STICKY ? 6 : 0;
+  sample(1270);
+  sample(1295);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Down,
+                    "opposite side button moves down");
+  pressedPin = -1;
+  sample(1320);
+  sample(1345);
+  queue.pop(event);
+
+  pressedPin = kPowerPin;
+  sample(1370);
+  sample(1395);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Power,
+                    "power press is delivered");
+  pressedPin = -1;
+  sample(3330);
+  runner.expectFalse(queue.pop(event), "release during refresh cannot become a long press");
+  sample(3355);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonRelease && event.button == Button::Power,
+                    "power release remains debounced");
+  pressedPin = kPowerPin;
+  sample(3400);
+  sample(3430);
+  queue.pop(event);
+  sample(5430);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonLongPress && event.button == Button::Power,
+                    "a physical hold still emits long press");
+  pressedPin = -1;
+  sample(5455);
+  sample(5480);
+  queue.pop(event);  // power release from the case above
+
+  // Suppression models setup: the button is debounce-stable held before the
+  // latch arms, and the hold past 700 ms must not emit a long press.
+  pressedPin = kPowerPin;
+  sample(5485);
+  sample(5515);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Power,
+                    "press before suppression is delivered");
+  input.suppressPowerUntilRelease();
+  runner.expectTrue(input.powerSuppressed(), "suppression armed while held");
+  sample(6250);
+  runner.expectTrue(input.powerSuppressed(), "suppression survives the hold");
+  runner.expectFalse(queue.pop(event), "suppressed hold emits no long press");
+  pressedPin = -1;
+  sample(6275);
+  sample(6300);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonRelease && event.button == Button::Power,
+                    "suppressed hold releases normally");
+  runner.expectFalse(input.powerSuppressed(), "release clears suppression");
+  pressedPin = kPowerPin;
+  sample(6400);
+  sample(6430);
+  queue.pop(event);  // press
+  sample(7150);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonLongPress && event.button == Button::Power,
+                    "press after suppression emits long press again");
+  pressedPin = -1;
+  sample(7175);
+  sample(7200);
+  queue.pop(event);  // release
+
+  // A release before the first poll must clear the latch without an edge.
+  input.suppressPowerUntilRelease();
+  pressedPin = kPowerPin;
+  // No polls while the button is down.
+  pressedPin = -1;
+  sample(7300);
+  runner.expectFalse(input.powerSuppressed(), "release before first poll clears suppression");
+  runner.expectFalse(queue.pop(event), "no events from an unobserved press");
+  pressedPin = kPowerPin;
+  sample(7400);
+  sample(7430);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Power,
+                    "press after edgeless clear is delivered");
+  sample(8150);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonLongPress && event.button == Button::Power,
+                    "hold after edgeless clear emits long press");
+  pressedPin = -1;
+  sample(8175);
+  sample(8200);
+  queue.pop(event);
+  pressedPin = PAPYRIX_TARGET_MURPHY_M4 ? 1 : PAPYRIX_TARGET_STICKY ? 5 : 7;
+  sample(8210);
+  sample(8240);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Up,
+                    "fallback page press starts before the wait");
+  input.setPageButtonsBlocked(true);
+  sample(9000);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonCancel && event.button == Button::Up,
+                    "fallback wait cancels a held direction without a release");
+  input.setPageButtonsBlocked(false);
+  sample(10000);
+  runner.expectFalse(queue.pop(event), "fallback held button remains silent after the wait");
+  pressedPin = -1;
+  sample(10010);
+  sample(10040);
+  runner.expectFalse(queue.pop(event), "fallback suppressed release cannot navigate");
+  pressedPin = PAPYRIX_TARGET_MURPHY_M4 ? 1 : PAPYRIX_TARGET_STICKY ? 5 : 7;
+  sample(10050);
+  sample(10080);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Up,
+                    "fallback fresh press works after release");
+  pressedPin = -1;
+  sample(10100);
+  sample(10130);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonRelease && event.button == Button::Up,
+                    "fallback fresh release completes one tap");
+  testManualMillisValue = 40130;
+  input.resetIdleTimer();
+  runner.expectEq(uint32_t{30000}, input.userIdleTimeMs(), "light timeout remains due while Wi-Fi prevents sleep");
+  runner.expectFalse(queue.pop(event), "keep-awake does not create a user input event");
+
+  sample(UINT32_MAX - 50UL);
+  pressedPin = PAPYRIX_TARGET_MURPHY_M4 ? 1 : PAPYRIX_TARGET_STICKY ? 5 : 7;
+  sample(UINT32_MAX - 40UL);
+  sample(UINT32_MAX - 15UL);
+  runner.expectTrue(queue.pop(event) && event.type == EventType::ButtonPress && event.button == Button::Up,
+                    "a fresh page press remains available near clock rollover");
+  testManualMillisValue = 14;
+  runner.expectEq(uint32_t{30}, input.userIdleTimeMs(), "user inactivity spans clock rollover");
+  input.resetIdleTimer();
+  runner.expectEq(uint32_t{30}, input.userIdleTimeMs(), "sleep reset after rollover preserves user inactivity");
+  pressedPin = -1;
+#if PAPYRIX_TARGET_MURPHY_M4
+  fixture.releaseForStop();
+#endif
+  input.shutdown();
+  cleanupMockTasks();
+  testSetDigitalReadHook(nullptr);
+  testManualMillisEnabled = false;
+  return runner.allPassed() ? 0 : 1;
+}

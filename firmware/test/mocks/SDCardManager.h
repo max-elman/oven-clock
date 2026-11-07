@@ -1,0 +1,381 @@
+#pragma once
+
+#include <cstring>
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "SdFat.h"
+
+// Injection outcome for a queued rename() call. AfterMutation mirrors
+// FatFile::rename, which removes the old entry before the final cacheSync can
+// fail: the move happens, the call still reports false.
+enum class RenameFailMode { Succeed, FailBeforeMutation, FailAfterMutation };
+
+class SDCardManager {
+ public:
+  SDCardManager() = default;
+  bool begin() { return true; }
+  void end() {}
+  bool ready() const { return true; }
+
+  void registerFile(const std::string& path, const std::string& data) {
+    files_[path] = data;
+    writtenFiles_.erase(path);
+    directories_.erase(path);
+  }
+
+  void registerDirectory(const std::string& path, const std::vector<MockDirectoryEntry>& entries) {
+    directories_[path] = entries;
+    files_.erase(path);
+    writtenFiles_.erase(path);
+    modifyDateTimes_.erase(path);
+  }
+
+  // Alias for registerFile - more intuitive name for test setup
+  void setFileData(const std::string& path, const std::vector<uint8_t>& data) {
+    registerFile(path, std::string(data.begin(), data.end()));
+  }
+
+  void setFileData(const std::string& path, const std::string& data) { registerFile(path, data); }
+
+  void setFileModifyDateTime(const std::string& path, uint16_t date, uint16_t time) {
+    modifyDateTimes_[path] = {date, time};
+  }
+
+  // Control whether exists() returns true for a path
+  void setFileExists(const std::string& path, bool exists) {
+    if (exists) {
+      // Ensure path is in the map even if no data
+      if (files_.find(path) == files_.end()) {
+        files_[path] = "";
+      }
+    } else {
+      files_.erase(path);
+      modifyDateTimes_.erase(path);
+    }
+  }
+
+  void clearFiles() {
+    files_.clear();
+    writtenFiles_.clear();
+    directories_.clear();
+    modifyDateTimes_.clear();
+  }
+
+  // Reset all mock state
+  void reset() {
+    files_.clear();
+    writtenFiles_.clear();
+    directories_.clear();
+    modifyDateTimes_.clear();
+    openFailCount_ = 0;
+    openFileForReadFailCount_ = 0;
+    openFileForWriteFailCount_ = 0;
+    readOpenCount_ = 0;
+    readObserver_ = {};
+    mallocFailCount_ = 0;
+    readLimit_ = 0;
+    readLimitActive_ = false;
+    failBufferReadAfter_ = 0;
+    failBufferReadAfterActive_ = false;
+    gMockBufferReadCalls = 0;
+    writeLimit_ = 0;
+    writeLimitActive_ = false;
+    syncResult_ = true;
+    closeResult_ = true;
+    seekEndResult_ = true;
+    seeksBeforeFailure_ = SIZE_MAX;
+    renameResult_ = true;
+    renameFailures_.clear();
+    renameCalls_ = 0;
+    renameFailOnCall_ = 0;
+  }
+
+  bool exists(const char* path) {
+    return files_.find(path) != files_.end() || writtenFiles_.find(path) != writtenFiles_.end() ||
+           directories_.find(path) != directories_.end();
+  }
+
+  bool exists(const std::string& path) { return exists(path.c_str()); }
+
+  // Failure injection: first N open() calls for a path return an invalid FsFile
+  void setOpenFailCount(int count) { openFailCount_ = count; }
+
+  // Failure injection: first N openFileForRead() calls for a path fail
+  void setOpenFileForReadFailCount(int count) { openFileForReadFailCount_ = count; }
+  void setOpenFileForWriteFailCount(int count) { openFileForWriteFailCount_ = count; }
+  size_t readOpenCount() const { return readOpenCount_; }
+  void setReadObserver(std::function<void(const char*)> observer) { readObserver_ = std::move(observer); }
+
+  // Failure injection: next N malloc calls return nullptr
+  void setMallocFailCount(int count) { mallocFailCount_ = count; }
+  void setNextMallocFails(bool fails) {
+    if (fails && mallocFailCount_ == 0) mallocFailCount_ = 1;
+  }
+
+  // Check if malloc should fail (decrements counter)
+  bool shouldMallocFail() {
+    if (mallocFailCount_ > 0) {
+      mallocFailCount_--;
+      return true;
+    }
+    return false;
+  }
+
+  // Read limit injection: only allow N bytes to be read
+  void setReadLimit(size_t limit) {
+    readLimit_ = limit;
+    readLimitActive_ = true;
+  }
+
+  void setWriteLimit(size_t limit) {
+    writeLimit_ = limit;
+    writeLimitActive_ = true;
+  }
+
+  void setSyncResult(bool result) { syncResult_ = result; }
+  void setCloseResult(bool result) { closeResult_ = result; }
+  void setSeekEndResult(bool result) { seekEndResult_ = result; }
+  void setFailSeekAfter(size_t count) { seeksBeforeFailure_ = count; }
+  void setFailBufferReadAfter(size_t successfulCalls) {
+    failBufferReadAfter_ = successfulCalls;
+    failBufferReadAfterActive_ = true;
+  }
+  void setRenameResult(bool result) { renameResult_ = result; }
+  void setRenameFailOnCall(size_t call) {
+    renameCalls_ = 0;
+    renameFailOnCall_ = call;
+  }
+  void queueRenameFailure(size_t call, RenameFailMode mode) { renameFailures_[call] = mode; }
+
+  FsFile open(const char* path, int mode = O_RDONLY) {
+    FsFile file;
+    if (openFailCount_ > 0) {
+      openFailCount_--;
+      return file;
+    }
+    if ((mode & O_EXCL) != 0 && exists(path)) return file;
+
+    const bool writable = (mode & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC)) != 0;
+    if (writable) {
+      std::shared_ptr<std::string> buffer;
+      auto written = writtenFiles_.find(path);
+      if (written != writtenFiles_.end()) {
+        buffer = written->second;
+      } else {
+        buffer = std::make_shared<std::string>();
+        auto existing = files_.find(path);
+        if (existing != files_.end()) *buffer = existing->second;
+        writtenFiles_[path] = buffer;
+      }
+      if ((mode & O_TRUNC) != 0) buffer->clear();
+      file.setSharedBuffer(buffer);
+      auto timestamp = modifyDateTimes_.find(path);
+      if (timestamp != modifyDateTimes_.end()) {
+        file.setModifyDateTime(timestamp->second.first, timestamp->second.second);
+      }
+      file.setTimestampCallback(
+          [this, pathStr = std::string(path)](uint16_t d, uint16_t t) { modifyDateTimes_[pathStr] = {d, t}; });
+      if (writeLimitActive_) file.setWriteLimit(writeLimit_);
+      file.setSyncResult(syncResult_);
+      file.setCloseResult(closeResult_);
+      file.setSeekEndResult(seekEndResult_);
+      return file;
+    }
+
+    auto directory = directories_.find(path);
+    if (directory != directories_.end()) {
+      file.setDirectory(directory->second);
+      file.setDirectoryOpener([this, parent = std::string(path)](const std::string& name) {
+        const std::string child = parent + (parent.back() == '/' ? "" : "/") + name;
+        return open(child.c_str(), O_RDONLY);
+      });
+      return file;
+    }
+
+    auto existing = files_.find(path);
+    if (existing != files_.end()) {
+      file.setBuffer(existing->second);
+    } else {
+      auto written = writtenFiles_.find(path);
+      if (written != writtenFiles_.end()) file.setBuffer(*written->second);
+    }
+    if (file) {
+      auto timestamp = modifyDateTimes_.find(path);
+      if (timestamp != modifyDateTimes_.end()) {
+        file.setModifyDateTime(timestamp->second.first, timestamp->second.second);
+      }
+      if (readLimitActive_) file.setReadLimit(readLimit_);
+      if (failBufferReadAfterActive_) file.setFailBufferReadAfter(failBufferReadAfter_);
+      file.setFailSeekAfter(seeksBeforeFailure_);
+    }
+    return file;
+  }
+
+  bool openFileForRead(const char* moduleName, const char* path, FsFile& file) {
+    (void)moduleName;
+    if (readObserver_) readObserver_(path);
+    if (openFileForReadFailCount_ > 0) {
+      openFileForReadFailCount_--;
+      return false;
+    }
+    ++readOpenCount_;
+    file = open(path, O_RDONLY);
+    return static_cast<bool>(file);
+  }
+
+  bool openFileForRead(const char* moduleName, const std::string& path, FsFile& file) {
+    return openFileForRead(moduleName, path.c_str(), file);
+  }
+
+  bool openFileForWrite(const char* moduleName, const std::string& path, FsFile& file) {
+    (void)moduleName;
+    if (openFileForWriteFailCount_ > 0) {
+      --openFileForWriteFailCount_;
+      return false;
+    }
+    auto buf = std::make_shared<std::string>();
+    writtenFiles_[path] = buf;
+    file.setSharedBuffer(buf);
+    auto timestamp = modifyDateTimes_.find(path);
+    if (timestamp != modifyDateTimes_.end()) {
+      file.setModifyDateTime(timestamp->second.first, timestamp->second.second);
+    }
+    if (writeLimitActive_) file.setWriteLimit(writeLimit_);
+    file.setSyncResult(syncResult_);
+    file.setCloseResult(closeResult_);
+    file.setSeekEndResult(seekEndResult_);
+    return true;
+  }
+
+  // Retrieve buffer written to a file (survives after FsFile destruction via shared_ptr)
+  std::string getWrittenData(const std::string& path) const {
+    auto it = writtenFiles_.find(path);
+    if (it != writtenFiles_.end() && it->second) {
+      return *it->second;
+    }
+    return "";
+  }
+
+  bool remove(const char* path) {
+    files_.erase(path);
+    writtenFiles_.erase(path);
+    directories_.erase(path);
+    modifyDateTimes_.erase(path);
+    return true;
+  }
+
+  bool rename(const char* oldPath, const char* newPath) {
+    const size_t call = ++renameCalls_;
+    RenameFailMode mode = RenameFailMode::Succeed;
+    auto queued = renameFailures_.find(call);
+    if (queued != renameFailures_.end()) {
+      mode = queued->second;
+    } else if (!renameResult_ || call == renameFailOnCall_) {
+      mode = RenameFailMode::FailBeforeMutation;
+    }
+    if (mode == RenameFailMode::FailBeforeMutation) return false;
+    if (std::strcmp(oldPath, newPath) == 0) return mode == RenameFailMode::Succeed && exists(oldPath);
+    const bool knownSource = files_.count(oldPath) != 0 || writtenFiles_.count(oldPath) != 0 ||
+                             directories_.count(oldPath) != 0 || modifyDateTimes_.count(oldPath) != 0;
+    if (!knownSource) return false;
+    auto it = files_.find(oldPath);
+    if (it != files_.end()) {
+      files_[newPath] = it->second;
+      files_.erase(it);
+    }
+    auto wit = writtenFiles_.find(oldPath);
+    if (wit != writtenFiles_.end()) {
+      writtenFiles_[newPath] = wit->second;
+      writtenFiles_.erase(wit);
+    }
+    auto directory = directories_.find(oldPath);
+    if (directory != directories_.end()) {
+      directories_[newPath] = std::move(directory->second);
+      directories_.erase(directory);
+    }
+    auto timestamp = modifyDateTimes_.find(oldPath);
+    if (timestamp != modifyDateTimes_.end()) {
+      modifyDateTimes_[newPath] = timestamp->second;
+      modifyDateTimes_.erase(timestamp);
+    }
+    return mode == RenameFailMode::Succeed;
+  }
+
+  bool commitFile(const char* tmpPath, const char* finalPath) {
+    remove(finalPath);
+    return rename(tmpPath, finalPath);
+  }
+
+  bool mkdir(const char* path) {
+    directories_[path] = {};
+    return true;
+  }
+  bool ensureDirectoryExists(const char* path) { return exists(path) || mkdir(path); }
+  bool removeDir(const char* path) {
+    directories_.erase(path);
+    modifyDateTimes_.erase(path);
+    return true;
+  }
+
+  template <typename Progress>
+  bool removeDir(const char* path, Progress progress) {
+    (void)progress;
+    return removeDir(path);
+  }
+
+  size_t readFileToBuffer(const char* path, char* buffer, size_t bufferSize) {
+    if (!buffer || bufferSize == 0) return 0;
+    FsFile file = open(path, O_RDONLY);
+    if (!file) return 0;
+    const int bytesRead = file.read(buffer, bufferSize);
+    file.close();
+    return bytesRead > 0 ? static_cast<size_t>(bytesRead) : 0;
+  }
+
+  static SDCardManager& getInstance() {
+    static SDCardManager instance;
+    return instance;
+  }
+
+  void clearWrittenFiles() { writtenFiles_.clear(); }
+
+  std::vector<std::string> writtenFilePaths() const {
+    std::vector<std::string> paths;
+    paths.reserve(writtenFiles_.size());
+    for (const auto& item : writtenFiles_) paths.push_back(item.first);
+    return paths;
+  }
+
+ private:
+  std::map<std::string, std::string> files_;
+  std::map<std::string, std::shared_ptr<std::string>> writtenFiles_;
+  std::map<std::string, std::vector<MockDirectoryEntry>> directories_;
+  std::map<std::string, std::pair<uint16_t, uint16_t>> modifyDateTimes_;
+  int openFailCount_ = 0;
+  int openFileForReadFailCount_ = 0;
+  int openFileForWriteFailCount_ = 0;
+  size_t readOpenCount_ = 0;
+  std::function<void(const char*)> readObserver_;
+  int mallocFailCount_ = 0;
+  size_t readLimit_ = 0;
+  bool readLimitActive_ = false;
+  size_t writeLimit_ = 0;
+  bool writeLimitActive_ = false;
+  bool syncResult_ = true;
+  bool closeResult_ = true;
+  bool seekEndResult_ = true;
+  size_t seeksBeforeFailure_ = SIZE_MAX;
+  bool renameResult_ = true;
+  size_t renameCalls_ = 0;
+  std::map<size_t, RenameFailMode> renameFailures_;
+  size_t renameFailOnCall_ = 0;
+  size_t failBufferReadAfter_ = 0;
+  bool failBufferReadAfterActive_ = false;
+};
+
+#define SdMan SDCardManager::getInstance()

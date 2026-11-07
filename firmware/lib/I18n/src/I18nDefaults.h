@@ -1,0 +1,339 @@
+#pragma once
+
+#include "I18n.h"
+
+namespace i18n {
+
+// clang-format off
+static constexpr const char* DEFAULTS[static_cast<int>(StrId::STR__COUNT)] = {
+    // Button labels
+    "Back",                   // BACK
+    "Open",                   // OPEN
+    "Info",                   // INFO
+    "Select",                 // SELECT
+    "Cancel",                 // CANCEL
+    "Confirm",                // CONFIRM
+    "Done",                   // DONE
+    "Retry",                  // RETRY
+    "Stop",                   // STOP
+    "Scan",                   // SCAN
+    "Run",                    // RUN
+    "Go",                     // GO
+    "Restart",                // RESTART
+    "Connect",                // CONNECT
+    "Read",                   // READ
+    "Delete",                 // DELETE_BTN
+    "File",                   // FILE
+    "Apps",                   // APPS
+    "Home",                   // HOME
+    "Yes",                    // YES
+    "No",                     // NO
+
+    // Menu items
+    "Settings",               // SETTINGS
+    "Reader",                 // READER
+    "Screen",                 // SCREEN
+    "Device",                 // DEVICE
+    "Cleanup",                // CLEANUP
+    "System Info",            // SYSTEM_INFO
+    "Chapters",               // CHAPTERS
+    "Bookmarks",              // BOOKMARKS
+    "Book stats",             // BOOK_STATS
+    "Join Network",           // JOIN_NETWORK
+    "Create Hotspot",         // CREATE_HOTSPOT
+    "WiFi Transfer",          // WIFI_TRANSFER
+    "Calibre Sync",           // CALIBRE_SYNC
+    "Language",               // LANGUAGE
+
+    // Screen titles
+    "Reader Settings",        // READER_SETTINGS
+    "Screen Settings",        // SCREEN_SETTINGS
+    "Device Settings",        // DEVICE_SETTINGS
+    "Files",                  // FILES
+    "Network Mode",           // NETWORK_MODE
+    "Select Network",         // SELECT_NETWORK
+    "Connecting",             // CONNECTING_TITLE
+    "Web Server",             // WEB_SERVER
+    "Go to Page",             // GO_TO_PAGE
+    "Menu",                   // MENU
+    "Progress",               // PROGRESS
+    "Time read",              // TIME_READ
+    "Sessions",               // SESSIONS
+
+    // Settings labels
+    "Theme",                  // THEME
+    "Font Size",              // FONT_SIZE
+    "Text Layout",            // TEXT_LAYOUT
+    "Line Spacing",           // LINE_SPACING
+    "Text Anti-Aliasing",     // TEXT_ANTI_ALIASING
+    "Paragraph Alignment",    // PARAGRAPH_ALIGNMENT
+    "Hyphenation",            // HYPHENATION
+    "Show Images",            // SHOW_IMAGES
+    "Status Bar",             // STATUS_BAR
+    "Reading Orientation",    // READING_ORIENTATION
+    "Auto Sleep Timeout",     // AUTO_SLEEP_TIMEOUT
+    "Sleep Screen",           // SLEEP_SCREEN
+    "Startup Behavior",       // STARTUP_BEHAVIOR
+    "Show Recents",          // SHOW_RECENTS
+    "Short Power Button",     // SHORT_POWER_BUTTON
+    "Pages Per Refresh",      // PAGES_PER_REFRESH
+    "Sunlight Fading Fix",    // SUNLIGHT_FADING_FIX
+    "Front Buttons",          // FRONT_BUTTONS
+    "Side Buttons",           // SIDE_BUTTONS
+    "Full Book Process",      // FULL_BOOK_PROCESS
+    "Touch page turns",        // TOUCH_PAGE_TURNS
+
+    // Settings enum values
+    "ON",                     // ON
+    "OFF",                    // OFF
+    "XSmall",                 // XSMALL
+    "Small",                  // SMALL
+    "Normal",                 // NORMAL
+    "Large",                  // LARGE
+    "Compact",                // COMPACT
+    "Standard",               // STANDARD
+    "Relaxed",                // RELAXED
+    "Justified",              // JUSTIFIED
+    "Left",                   // LEFT
+    "Center",                 // CENTER
+    "Right",                  // RIGHT
+    "None",                   // NONE_VAL
+    "Title",                  // TITLE_VAL
+    "Chapter",                // CHAPTER_VAL
+    "Portrait",               // PORTRAIT
+    "Landscape CW",           // LANDSCAPE_CW
+    "Inverted",               // INVERTED
+    "Landscape CCW",          // LANDSCAPE_CCW
+    "Dark",                   // DARK
+    "Light",                  // LIGHT
+    "Custom",                 // CUSTOM
+    "Cover",                  // COVER
+    "Keep Page",              // KEEP_PAGE
+    "Last Document",          // LAST_DOCUMENT
+    "Ignore",                 // IGNORE
+    "Sleep",                  // SLEEP_VAL
+    "Page Turn",              // PAGE_TURN
+    "Never",                  // NEVER
+    "5 min",                  // MIN_5
+    "10 min",                 // MIN_10
+    "15 min",                 // MIN_15
+    "30 min",                 // MIN_30
+    "Prev/Next",              // PREV_NEXT
+    "Next/Prev",              // NEXT_PREV
+    "B/C/L/R",                // FRONT_BCLR
+    "L/R/B/C",                // FRONT_LRBC
+
+    // Cleanup
+    "Clear recent books",     // CLEAR_RECENT
+    "Clear Book Cache",       // CLEAR_BOOK_CACHE
+    "Clear Device Storage",   // CLEAR_DEVICE_STORAGE
+    "Factory Reset",          // FACTORY_RESET
+    "Clear recent books?",    // CLEAR_RECENT_Q
+    "Book files and stats are kept.",  // CLEAR_RECENT_MSG
+    "Clear Caches?",          // CLEAR_CACHES_Q
+    "This will delete all book caches",    // CLEAR_CACHES_MSG1
+    "and reading progress.",               // CLEAR_CACHES_MSG2
+    "Clear Device?",          // CLEAR_DEVICE_Q
+    "This will erase internal flash",      // CLEAR_DEVICE_MSG1
+    "storage. Device will restart.",        // CLEAR_DEVICE_MSG2
+    "Factory Reset?",         // FACTORY_RESET_Q
+    "This will erase ALL data including",  // FACTORY_RESET_MSG1
+    "settings and WiFi credentials!",      // FACTORY_RESET_MSG2
+    "Clearing cache...",      // CLEARING_CACHE
+    "Cache cleared",          // CACHE_CLEARED
+    "No cache to clear",      // NO_CACHE_TO_CLEAR
+    "Clearing device storage...",           // CLEARING_STORAGE
+    "Resetting device...",    // RESETTING_DEVICE
+    "Done. Restarting...",    // DONE_RESTARTING
+
+    // Status messages
+    "Scanning...",            // SCANNING
+    "Connecting...",          // CONNECTING
+    "Getting IP address...",  // GETTING_IP
+    "Connected!",             // CONNECTED
+    "Starting...",            // STARTING
+    "Loading...",             // LOADING
+    "Indexing...",            // INDEXING
+    "Opening book...",        // OPENING_BOOK
+    "Deleting...",            // DELETING
+    "No book open",           // NO_BOOK_OPEN
+    "Press \"Books\" to explore",           // PRESS_FILE_TO_EXPLORE
+    "Press \"Files\" to explore",           // PRESS_FILES_TO_EXPLORE
+    "No files found",         // NO_FILES_FOUND
+    "End of book",            // END_OF_BOOK
+    "Failed to load page",    // FAILED_TO_LOAD_PAGE
+    "Cannot delete active book",           // CANNOT_DELETE_ACTIVE
+    "Deleted",                // DELETED
+    "Delete failed",          // DELETE_FAILED
+    "Server stopped",         // SERVER_STOPPED
+    "Returning to library...",             // RETURNING_TO_LIBRARY
+    "SLEEPING",               // SLEEPING
+
+    // Network
+    "Connect to existing WiFi",            // CONNECT_WIFI
+    "Create WiFi hotspot",    // CREATE_WIFI_HOTSPOT
+    "No networks found",      // NO_NETWORKS_FOUND
+    "Press Confirm to scan again",         // PRESS_CONFIRM_SCAN
+    "Disconnected. Restart?", // DISCONNECTED_RESTART
+
+    // Calibre
+    "Waiting for Calibre...", // WAITING_FOR_CALIBRE
+    "Connecting to Calibre...",            // CONNECTING_TO_CALIBRE
+    "In Calibre: Connect/share > Wireless device",  // CALIBRE_HELP
+
+    // Format strings
+    "IP: %s",                 // FMT_IP
+    "Received %d book(s)",    // FMT_RECEIVED_BOOKS
+    "of %d",                  // FMT_PAGE_OF
+
+    // System info
+    "Version",                // VERSION
+    "Uptime",                 // UPTIME
+    "Battery",                // BATTERY
+    "Chip",                   // CHIP
+    "CPU",                    // CPU
+    "Free Memory",            // FREE_MEMORY
+    "Internal Disk",          // INTERNAL_DISK
+    "SD Card",                // SD_CARD
+    "Ready",                  // READY
+    "Not available",          // NOT_AVAILABLE
+
+    // Keyboard
+    "Backspace",              // BACKSPACE
+    "Space",                  // SPACE
+
+    // Error
+    "Error",                  // ERROR
+    "Press any button to continue",        // PRESS_ANY_BUTTON
+
+    // Confirm dialog
+    "Confirm Delete",         // CONFIRM_DELETE
+
+    // Misc
+    "Enter Text",             // ENTER_TEXT
+    "No Cover",               // NO_COVER
+    "Add",                    // ADD
+    "No bookmarks yet",       // NO_BOOKMARKS
+    "Books",                  // BOOKS
+    "Recent",                 // RECENT_BOOKS
+    "No recent books",        // NO_RECENT_BOOKS
+    "Remove",                 // REMOVE_RECENT
+    "Remove from recent?",    // REMOVE_RECENT_Q
+    "Delete this file?",      // DELETE_FILE_Q
+    "Delete this folder?",    // DELETE_FOLDER_Q
+    "Enter Password",         // ENTER_PASSWORD
+    "Save Password?",         // SAVE_PASSWORD_Q
+    "Save password for this network?",  // SAVE_PASSWORD_MSG
+    "Connection failed",      // CONNECTION_FAILED
+    "Failed to start hotspot",         // HOTSPOT_FAILED
+    "Initializing WiFi...",   // INITIALIZING_WIFI
+    "Invalid file",           // INVALID_FILE
+    "Memory error",           // MEMORY_ERROR
+    "Page load error",        // PAGE_LOAD_ERROR
+    "Receiving...",           // RECEIVING
+    "BOOTING",               // BOOTING
+
+    // Firmware Update (from SD card)
+    "Firmware Update",      // FIRMWARE_UPDATE
+    "Do not power off or remove SD card during update",  // FIRMWARE_WARNING
+    "Found",                // FIRMWARE_FILE_FOUND
+    "Flashing...",          // FLASHING_UPDATE
+    "Update complete! Restarting...", // UPDATE_COMPLETE
+    "Update failed",        // UPDATE_FAILED
+    "Wrong firmware",      // UPDATE_WRONG_DEVICE
+    "No firmware file found on SD card",  // NO_FIRMWARE_FILE
+    "Validating...",        // VALIDATING_FIRMWARE
+    "Bookmark",             // BOOKMARK_VAL
+    "Bookmark added",       // BOOKMARK_ADDED
+    "Recent",               // RECENT_NETWORK
+
+    // Recycle bin
+    "Recycle bin",                     // RECYCLE_BIN
+    "Restore",                         // RESTORE
+    "Empty Trash",                     // EMPTY_TRASH
+    "Empty Trash?",                    // EMPTY_TRASH_Q
+    "This permanently deletes",        // EMPTY_TRASH_MSG1
+    "all trashed books.",              // EMPTY_TRASH_MSG2
+    "Emptying trash...",               // EMPTYING_TRASH
+    "Trash emptied",                   // TRASH_EMPTIED
+    "No trash to empty",               // NO_TRASH_TO_EMPTY
+    "Moving to trash...",              // MOVING_TO_TRASH
+    "Moved to trash",                  // MOVED_TO_TRASH
+    "Could not move to trash",         // MOVE_TO_TRASH_FAILED
+    "Restoring...",                    // RESTORING
+    "Restored",                        // RESTORED
+    "Could not restore",               // RESTORE_FAILED
+    "Confirm Move",                    // CONFIRM_TRASH
+    "Confirm Restore",                 // CONFIRM_RESTORE
+    "Move this file to trash?",        // MOVE_TO_TRASH_Q
+    "Restore to original folder?",     // RESTORE_FILE_Q
+    "Delete this file permanently?",   // DELETE_PERMANENTLY_Q
+    "Cannot delete the trash folder",  // CANNOT_DELETE_TRASH
+    "Brightness",                      // BRIGHTNESS
+    "Warmth",                          // WARMTH
+    "Converting...",                   // CONVERTING
+    "Conversion failed",               // CONVERSION_FAILED
+    "Failed to open image",            // IMAGE_OPEN_FAILED
+    "Invalid image file",              // IMAGE_INVALID
+    "WiFi",                            // WIFI
+    "Saved",                           // SAVED_NETWORKS
+    "Edit",                            // EDIT_NETWORK
+    "Forget",                          // FORGET_NETWORK
+    "SSID",                            // ENTER_SSID
+    "Save failed",                     // SAVE_FAILED
+    "SSID: 1-32 characters",           // INVALID_SSID
+    "Network limit reached",           // NETWORK_LIMIT
+    "Already saved",                   // SSID_ALREADY_SAVED
+    "Filename",                        // FILENAME_VAL
+    "SD card full. Free space.",       // LOW_SPACE_WARNING
+    "Hardware batch",                  // HARDWARE_BATCH
+    "Batch 1",                         // BATCH_1
+    "Batch 2",                         // BATCH_2
+    "Change hardware batch?",          // CHANGE_BATCH_Q
+    "Save and restart to apply.",      // CHANGE_BATCH_RESTART
+    "Light timer",                     // FRONT_LIGHT_TIMEOUT
+    "Smooth light",                    // SMOOTH_FRONT_LIGHT
+    "30 s",                            // SEC_30
+    "1 min",                           // MIN_1
+    "2 min",                           // MIN_2
+    "Sleep Image",                     // SLEEP_IMAGE
+    "Random",                          // RANDOM
+    "Score",                           // GAME_SCORE
+    "Swipe or tap an arrow",           // GAME_TOUCH_HINT
+    "Use direction buttons",           // GAME_BUTTON_HINT
+    "Resume",                          // GAME_RESUME
+    "New game",                        // GAME_NEW
+    "Start a new game?",               // GAME_RESTART
+    "Continue",                        // GAME_CONTINUE
+    "Game over",                       // GAME_OVER
+    "Cannot load game",                // GAME_LOAD_ERROR
+    "Cannot clear save",               // GAME_CLEAR_ERROR
+    "Discard changes",                 // GAME_DISCARD
+    "Old save may remain",             // GAME_KEEP_SAVE
+    "Place",                           // GO_PLACE
+    "Pass",                            // GO_PASS
+    "Resign",                          // GO_RESIGN
+    "Resign?",                         // GO_RESIGN_CONFIRM
+    "Point occupied",                  // GO_OCCUPIED
+    "Repeated position",               // GO_REPETITION
+    "Cannot choose a move",            // GO_THINK_ERROR
+    "Not enough memory",               // GO_MEMORY_ERROR
+    "Stopping",                        // GO_STOPPING
+    "Save and exit",                   // GO_SAVE_EXIT
+    "Black",                           // GO_BLACK
+    "White",                           // GO_WHITE
+    "Turn",                            // GO_TURN
+    "Thinking",                        // GO_THINKING
+    "Last move: pass",                 // GO_LAST_PASS
+    "Tap a point, then Place",         // GO_TOUCH_HINT
+    "Hold Confirm for menu",           // GO_BUTTON_HINT
+    "Komi",                            // GO_KOMI
+    "wins",                            // GO_WINS
+    "Draw",                            // GO_DRAW
+};
+// clang-format on
+
+static_assert(sizeof(DEFAULTS) / sizeof(DEFAULTS[0]) == static_cast<int>(StrId::STR__COUNT),
+              "DEFAULTS array size must match StrId::STR__COUNT");
+
+}  // namespace i18n

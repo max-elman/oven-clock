@@ -1,0 +1,117 @@
+#pragma once
+
+#include <SDCardManager.h>
+
+#include <string>
+#include <vector>
+
+class BookMetadataCache {
+ public:
+  struct BookMetadata {
+    std::string title;
+    std::string author;
+    std::string language;
+    std::string coverItemHref;
+    std::string textReferenceHref;
+  };
+
+  struct SpineEntry {
+    std::string href;
+    int16_t tocIndex;
+
+    SpineEntry() : tocIndex(-1) {}
+    SpineEntry(std::string href, const int16_t tocIndex) : href(std::move(href)), tocIndex(tocIndex) {}
+  };
+
+  struct TocEntry {
+    std::string title;
+    std::string href;
+    std::string anchor;
+    uint8_t level;
+    int16_t spineIndex;
+
+    TocEntry() : level(0), spineIndex(-1) {}
+    TocEntry(std::string title, std::string href, std::string anchor, const uint8_t level, const int16_t spineIndex)
+        : title(std::move(title)),
+          href(std::move(href)),
+          anchor(std::move(anchor)),
+          level(level),
+          spineIndex(spineIndex) {}
+  };
+
+ private:
+  std::string cachePath;
+  uint32_t lutOffset;
+  uint16_t spineCount;
+  uint16_t tocCount;
+  // Distinct spine items covered by the parsed TOC candidate (not row count).
+  uint16_t usableTocCount;
+  // Scratch bitset, one bit per spine index, capped by the 500-entry limit.
+  uint8_t coveredSpineBits[63];
+  uint32_t dataOffset;
+  uint32_t cacheFileSize;
+  bool loaded;
+  bool buildMode;
+  bool buildFailed;
+
+  FsFile bookFile;
+  // Temp file handles during build
+  FsFile spineFile;
+  FsFile tocFile;
+
+  bool writeSpineEntry(FsFile& file, const SpineEntry& entry) const;
+  bool writeTocEntry(FsFile& file, const TocEntry& entry) const;
+  SpineEntry readSpineEntry(FsFile& file) const;
+  TocEntry readTocEntry(FsFile& file) const;
+  bool readEntryPosition(uint32_t lutEntryOffset, uint32_t& entryPosition);
+  bool publishBookBin(const std::string& tmpBookPath);
+
+ public:
+  BookMetadata coreMetadata;
+
+  explicit BookMetadataCache(std::string cachePath)
+      : cachePath(std::move(cachePath)),
+        lutOffset(0),
+        spineCount(0),
+        tocCount(0),
+        usableTocCount(0),
+        coveredSpineBits(),
+        dataOffset(0),
+        cacheFileSize(0),
+        loaded(false),
+        buildMode(false),
+        buildFailed(false) {}
+  ~BookMetadataCache() = default;
+
+  // Building phase (stream to disk immediately)
+  bool beginWrite();
+  bool beginContentOpfPass();
+  void createSpineEntry(const std::string& href);
+  bool endContentOpfPass();
+  bool beginTocPass();
+  void createTocEntry(const std::string& title, const std::string& href, const std::string& anchor, uint8_t level);
+  bool endTocPass();
+  bool skipTocPass();
+  bool endWrite();
+  // TOC candidate selection and recovery
+  int getUsableTocCount() const { return usableTocCount; }
+  bool stashTocCandidate();
+  void discardStashedTocCandidate();
+  bool restoreStashedTocCandidate(uint16_t stashedTocCount, uint16_t stashedUsableCount);
+  bool beginTocRecovery();
+  bool cleanupTmpFiles() const;
+
+  // Post-processing to update mappings and sizes
+  bool buildBookBin(const std::string& epubPath, const BookMetadata& metadata);
+  bool rebuildFromMemory(const BookMetadata& metadata, const std::vector<SpineEntry>& spine,
+                         const std::vector<TocEntry>& toc);
+
+  // Reading phase (read mode)
+  bool load();
+  SpineEntry getSpineEntry(int index);
+  TocEntry getTocEntry(int index);
+  bool readTocEntries(std::vector<TocEntry>& entries, int maxCount);
+  int getSpineCount() const { return spineCount; }
+  int getTocCount() const { return tocCount; }
+  bool isLoaded() const { return loaded; }
+};

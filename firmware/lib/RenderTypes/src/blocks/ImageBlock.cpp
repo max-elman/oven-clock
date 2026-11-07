@@ -1,0 +1,83 @@
+#include "ImageBlock.h"
+
+#include <Bitmap.h>
+#if PAPYRIX_TARGET_X4PRO || PAPYRIX_TARGET_X4CLASSIC || PAPYRIX_TARGET_STICKY || PAPYRIX_TARGET_MURPHY_M4
+#include <BitmapTurnCache.h>
+#endif
+#include <GfxRenderer.h>
+#include <Logging.h>
+#include <SDCardManager.h>
+#include <Serialization.h>
+
+#define TAG "IMG_BLOCK"
+
+void ImageBlock::render(GfxRenderer& renderer, const int fontId, const int x, const int y) const {
+  auto renderPlaceholder = [&]() {
+    const char* placeholder = "[Image]";
+    const int textWidth = renderer.getTextWidth(fontId, placeholder);
+    int textX = x + (static_cast<int>(width) - textWidth) / 2;
+    if (textX < x) textX = x;
+    const int textY = y + height / 2;
+    renderer.drawText(fontId, textX, textY, placeholder, true);
+  };
+
+  if (cachedBmpPath.empty()) {
+    renderPlaceholder();
+    return;
+  }
+
+#if PAPYRIX_TARGET_X4PRO || PAPYRIX_TARGET_X4CLASSIC || PAPYRIX_TARGET_STICKY || PAPYRIX_TARGET_MURPHY_M4
+  if (auto* cache = renderer.bitmapTurnCache()) {
+    if (auto* bitmap = cache->get(cachedBmpPath)) {
+      renderer.drawBitmap(*bitmap, x, y, width, height);
+      return;
+    }
+  }
+#endif
+
+  FsFile bmpFile;
+  if (!SdMan.openFileForRead("IMB", cachedBmpPath, bmpFile)) {
+    LOG_ERR(TAG, "Failed to open cached BMP: %s", cachedBmpPath.c_str());
+    renderPlaceholder();
+    return;
+  }
+
+  Bitmap bitmap(bmpFile, true);
+#if PAPYRIX_TARGET_X4PRO || PAPYRIX_TARGET_X4CLASSIC || PAPYRIX_TARGET_STICKY || PAPYRIX_TARGET_MURPHY_M4
+  if (renderer.bitmapTurnCache()) bitmap.disablePreload();
+#endif
+  const BmpReaderError err = bitmap.parseHeaders();
+  if (err != BmpReaderError::Ok) {
+    LOG_ERR(TAG, "BMP parse error: %s", Bitmap::errorToString(err));
+    bmpFile.close();
+    renderPlaceholder();
+    return;
+  }
+
+  renderer.drawBitmap(bitmap, x, y, width, height);
+  bmpFile.close();
+}
+
+bool ImageBlock::serialize(FsFile& file) const {
+  return serialization::writeStringChecked(file, cachedBmpPath) && serialization::writePodChecked(file, width) &&
+         serialization::writePodChecked(file, height);
+}
+
+std::unique_ptr<ImageBlock> ImageBlock::deserialize(FsFile& file) {
+  std::string path;
+  uint16_t w, h;
+
+  if (!serialization::readString(file, path) || !serialization::readPodChecked(file, w) ||
+      !serialization::readPodChecked(file, h)) {
+    LOG_ERR(TAG, "Deserialization failed: couldn't read data");
+    return nullptr;
+  }
+
+  // Sanity check: prevent unreasonable dimensions from corrupted data
+  if (w > 2000 || h > 2000) {
+    LOG_ERR(TAG, "Deserialization failed: dimensions %ux%u exceed maximum", w, h);
+    return nullptr;
+  }
+
+  return std::unique_ptr<ImageBlock>(new ImageBlock(std::move(path), w, h));
+}

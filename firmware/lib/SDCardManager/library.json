@@ -1,0 +1,32 @@
+{
+  "name": "SDCardManager",
+  "version": "2.0.0",
+  "description": "SD card file system utilities",
+  "authors": [
+    {
+      "name": "CidVonHighwind",
+      "url": "https://github.com/CidVonHighwind"
+    },
+    {
+      "name": "Dave Allie",
+      "url": "https://github.com/daveallie"
+    },
+    {
+      "name": "FreeInk",
+      "url": "https://github.com/FreeInk"
+    }
+  ],
+  "dependencies": {
+    "SdFat": "*",
+    "BoardSupport": "*"
+  },
+  "platforms": "espressif32",
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include"
+  }
+}
