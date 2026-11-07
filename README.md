@@ -10,8 +10,9 @@ A wall clock for a Samsung NQ70M7770 wall oven. A 3D-printed cover plate sits ov
 
 | Folder | What it is |
 | --- | --- |
-| `plate/` | The cover plate: `oven-plate.scad` (OpenSCAD source, current version v5), STL, print-orientation files, and sliced Bambu files for the H2C and X1C (PLA, gyroid 15%). |
-| `plate/versions/` | Every version, v1–v5, each with its H2C print file. v5 is the same as the files in `plate/`. |
+| `plate/` | The cover plate model, current version v5: `oven-plate.scad` (OpenSCAD source) and `oven-plate.stl`. |
+| `plate/print/` | **What to print:** `oven-plate-v5-H2C-PLA.gcode.3mf` (H2C, PLA, gyroid 15%), plus the print-orientation files. |
+| `plate/versions/` | Earlier versions, v1–v4, with their print files (v3 also has an X1C file, rotated 45° to fit that bed). |
 | `firmware/` | The clock firmware: a fork of [papyrix-reader](https://github.com/bigbag/papyrix-reader) by bigbag (MIT), with its full history. |
 | `tools/` | `make-clock-font.py`, which turns a TTF into the clock's digit bitmaps. |
 | `images/` | Renders of the plate and the clock face. |
@@ -22,7 +23,7 @@ A wall clock for a Samsung NQ70M7770 wall oven. A 3D-printed cover plate sits ov
 - The window lines up with the 90 mm black glass. The magnet slots sit on the metal trim above and below the glass, 1 mm from its edge.
 - Magnets go in pairs: one stuck to the oven trim, one glued into the plate.
 - The PLA files are for test fits. Print the final plate in PETG or ASA, since it sits on an oven.
-- The X1C file is rotated 45° so the plate fits that printer's bed.
+- There's no X1C file for v5 yet; the v3 one shows the 45° layout that fits that bed.
 
 ## The firmware
 

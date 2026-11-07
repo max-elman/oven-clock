@@ -1,7 +1,3 @@
 .DS_Store
-# Xteink's stock firmware backup: not ours to publish
-x4-backup/
-# Previews rendered with Apple's fonts
-font-previews/
-# Slicer output
-result.json
+# Only on this Mac: Xteink stock firmware backup, previews made with Apple fonts
+local/
