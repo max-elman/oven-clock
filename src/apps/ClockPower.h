@@ -1,5 +1,8 @@
 #pragma once
 
+// Oven clock: fixed US Pacific time zone (POSIX rule, DST second Sunday of March to first Sunday of November).
+inline constexpr const char* CLOCK_TZ = "PST8PDT,M3.2.0,M11.1.0";
+
 #include <BoardProfile.h>
 #include <DisplayController.h>
 #include <esp_sleep.h>
@@ -31,7 +34,7 @@ struct ClockAppearance {
 
 struct ClockFrame {
   int64_t utcSeconds = 0;
-  clock_faces::Face face = clock_faces::Face::Big;
+  clock_faces::Face face = clock_faces::Face::Wide;
   int8_t utcOffset = 0;
   int8_t dateFormat = 0;
   uint8_t use24h = 1;

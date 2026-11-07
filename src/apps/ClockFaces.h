@@ -17,10 +17,11 @@ enum class Face : uint8_t {
   Minimal = 5,
   Serif = 6,
   DayNight = 7,
-  Count = 8,
+  Wide = 8,  // oven clock: 12-hour time only, landscape, seven-segment
+  Count = 9,
 };
 
-inline constexpr Face SELECTABLE_FACES[] = {Face::Big, Face::Analog, Face::Retro, Face::Flip, Face::DayNight};
+inline constexpr Face SELECTABLE_FACES[] = {Face::Wide, Face::Big, Face::Analog, Face::Retro, Face::Flip, Face::DayNight};
 
 struct Context {
   GfxRenderer& renderer;

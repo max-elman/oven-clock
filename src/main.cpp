@@ -550,7 +550,10 @@ void initUIMode(const papyrix::clock_app::ResumeRecord* clockResume = nullptr,
     initialState = papyrix::StateId::Recent;
     LOG_INF(TAG, "Returning to Recent from Reader");
   } else {
-    LOG_INF(TAG, "Starting at Home");
+    // Oven clock: open the clock app instead of the reader home screen.
+    LOG_INF(TAG, "Starting clock");
+    initialState = papyrix::StateId::AppLauncher;
+    papyrix::core.pendingAppId = papyrix::APP_CLOCK;
   }
 
   stateMachine.init(papyrix::core, initialState);

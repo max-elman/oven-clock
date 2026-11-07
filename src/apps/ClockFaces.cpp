@@ -75,6 +75,37 @@ void drawBig(const Context& context) {
   drawDate(context, layout);
 }
 
+// Oven clock face: H:MM or HH:MM across the whole landscape screen, nothing else.
+void drawWide(const Context& context) {
+  const auto& r = context.renderer;
+  const bool color = context.theme.primaryTextBlack;
+  const DisplayTime value = displayTime(context.time, context.use24h);
+  const int digitW = 160;
+  const int digitH = 330;
+  const int thick = 30;
+  const int gap = 26;
+  const int colonW = 60;
+  const bool twoHourDigits = value.showLeadingZero || value.hour >= 10;
+  const int digits = twoHourDigits ? 4 : 3;
+  const int total = digits * digitW + (digits - 2) * gap + colonW + 2 * gap;
+  int x = (r.getScreenWidth() - total) / 2;
+  const int y = (r.getScreenHeight() - digitH) / 2;
+  if (twoHourDigits) {
+    drawSevenSegmentDigit(r, x, y, value.hour / 10, digitW, digitH, thick, color);
+    x += digitW + gap;
+  }
+  drawSevenSegmentDigit(r, x, y, value.hour % 10, digitW, digitH, thick, color);
+  x += digitW + gap;
+  const int dot = 30;
+  const int cx = x + (colonW - dot) / 2;
+  r.fillRect(cx, y + digitH / 3 - dot / 2, dot, dot, color);
+  r.fillRect(cx, y + 2 * digitH / 3 - dot / 2, dot, dot, color);
+  x += colonW + gap;
+  drawSevenSegmentDigit(r, x, y, value.minute / 10, digitW, digitH, thick, color);
+  x += digitW + gap;
+  drawSevenSegmentDigit(r, x, y, value.minute % 10, digitW, digitH, thick, color);
+}
+
 void pointAt(int centerX, int centerY, int index, int radius, int& x, int& y) {
   x = centerX + CLOCK_X[index] * radius / 1024;
   y = centerY + CLOCK_Y[index] * radius / 1024;
@@ -372,6 +403,8 @@ Face selectRelative(Face face, int delta) {
 
 const char* name(Face face) {
   switch (face) {
+    case Face::Wide:
+      return "Wide";
     case Face::Big:
       return "Big";
     case Face::Analog:
@@ -389,6 +422,9 @@ const char* name(Face face) {
 
 void render(const Context& context, Face face) {
   switch (face) {
+    case Face::Wide:
+      drawWide(context);
+      break;
     case Face::Analog:
       drawAnalog(context);
       break;

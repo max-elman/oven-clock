@@ -51,14 +51,9 @@ static struct : ClockSettings {
   bool saveFailed = false;
 } state;
 
-static void applyTimezone(int offsetHours) {
-  char tz[16];
-  if (offsetHours == 0) {
-    snprintf(tz, sizeof(tz), "UTC0");
-  } else {
-    snprintf(tz, sizeof(tz), "UTC%d", -offsetHours);
-  }
-  setenv("TZ", tz, 1);
+// Oven clock: always US Pacific with daylight saving; the UTC offset setting is ignored.
+static void applyTimezone(int /*offsetHours*/) {
+  setenv("TZ", CLOCK_TZ, 1);
   tzset();
 }
 
@@ -259,7 +254,7 @@ ClockFrame captureFrame(Core& core, int64_t utcSeconds, bool interactive) {
                       theme.itemSpacing,
                       theme.itemPaddingX,
                       theme.itemValuePadding,
-                      static_cast<uint8_t>(renderer.getOrientation()),
+                      static_cast<uint8_t>(GfxRenderer::Orientation::LandscapeClockwise),
                       core.settings.frontButtonLayout};
   frame.batteryPercent = battery.percentageKnown ? static_cast<int16_t>(battery.percentage) : -1;
   frame.charging = battery.chargingKnown && battery.charging;

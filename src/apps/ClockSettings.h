@@ -14,13 +14,13 @@ namespace papyrix::clock_app {
 enum class PowerMode : uint8_t { Normal = 0, PowerSaving = 1 };
 
 struct ClockSettings {
-  clock_faces::Face face = clock_faces::Face::Big;
+  clock_faces::Face face = clock_faces::Face::Wide;
   int8_t utcOffset = 0;
-  bool use24h = true;
+  bool use24h = false;
   int8_t dateFormat = 0;
-  int8_t ntpSyncSetting = 0;
+  int8_t ntpSyncSetting = 2;  // daily
   char ntpServers[128] = "pool.ntp.org,time.nist.gov";
-  PowerMode powerMode = PowerMode::Normal;
+  PowerMode powerMode = PowerMode::PowerSaving;
 };
 
 inline constexpr uint32_t NTP_SYNC_SECONDS[] = {10800, 21600, 86400, 0};
