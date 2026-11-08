@@ -4,6 +4,7 @@
 #include <Theme.h>
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 
 #include "ClockFacePrimitives.h"
@@ -118,6 +119,39 @@ const clock_font::Glyph* findGlyph(char c) {
 
 // Oven clock face: H:MM in Inter Light, centered, nothing else. Uses the theme's text color,
 // so it is white on black when the frame picked the dark colors.
+// Rows that hold ink in a glyph: first (top) and one past the last (bottom).
+void inkRows(const clock_font::Glyph& glyph, int& top, int& bottom) {
+  const int rowBytes = (glyph.width + 7) / 8;
+  const uint8_t* rows = clock_font::BITMAP + glyph.offset;
+  top = -1;
+  bottom = 0;
+  for (int gy = 0; gy < clock_font::HEIGHT; ++gy) {
+    for (int b = 0; b < rowBytes; ++b) {
+      if (rows[gy * rowBytes + b]) {
+        if (top < 0) top = gy;
+        bottom = gy + 1;
+        break;
+      }
+    }
+  }
+  if (top < 0) top = 0;
+}
+
+// Inter puts the colon at lowercase height; move it down/up so it centers on the digits.
+int colonShift() {
+  static int shift = INT32_MIN;
+  if (shift != INT32_MIN) return shift;
+  shift = 0;
+  const auto* digit = findGlyph('0');
+  const auto* colon = findGlyph(':');
+  if (!digit || !colon) return shift;
+  int dTop, dBottom, cTop, cBottom;
+  inkRows(*digit, dTop, dBottom);
+  inkRows(*colon, cTop, cBottom);
+  shift = ((dTop + dBottom) - (cTop + cBottom)) / 2;
+  return shift;
+}
+
 void drawModern(const Context& context) {
   const auto& r = context.renderer;
   const bool color = context.theme.primaryTextBlack;
@@ -136,6 +170,7 @@ void drawModern(const Context& context) {
   for (const char* p = text; *p; ++p) {
     const auto* glyph = findGlyph(*p);
     if (!glyph) continue;
+    const int dy = glyph->c == ':' ? colonShift() : 0;
     const int rowBytes = (glyph->width + 7) / 8;
     const uint8_t* rows = clock_font::BITMAP + glyph->offset;
     for (int gy = 0; gy < clock_font::HEIGHT; ++gy) {
@@ -145,7 +180,7 @@ void drawModern(const Context& context) {
         const bool on = gx < glyph->width && (row[gx >> 3] & (0x80 >> (gx & 7)));
         if (on && runStart < 0) runStart = gx;
         if (!on && runStart >= 0) {
-          r.fillRect(x + glyph->xoff + runStart, y + gy, gx - runStart, 1, color);
+          r.fillRect(x + glyph->xoff + runStart, y + gy + dy, gx - runStart, 1, color);
           runStart = -1;
         }
       }
