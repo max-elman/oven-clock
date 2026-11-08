@@ -2,6 +2,8 @@
 
 A wall clock for a Samsung NQ70M7770 wall oven. A 3D-printed cover plate sits over the oven's control-panel glass, held on by magnets, and holds an [Xteink X4 Classic](https://www.xteink.com/) e-ink reader running clock-only firmware.
 
+Why: the oven's built-in screen and clock stopped working. The knobs still run the oven, so this puts a working clock back where the old one was.
+
 Print files and photos: [MakerWorld](https://makerworld.com/en/models/3561311-oven-control-panel-cover-with-e-ink-clock).
 
 ![The finished clock on the oven, showing 2:25](images/on-oven.jpg)
