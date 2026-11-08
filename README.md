@@ -4,6 +4,10 @@ A wall clock for a Samsung NQ70M7770 wall oven. A 3D-printed cover plate sits ov
 
 Print files and photos: [MakerWorld](https://makerworld.com/en/models/3561311-oven-control-panel-cover-with-e-ink-clock).
 
+![The finished clock on the oven, showing 2:25](images/on-oven.jpg)
+
+![The plate on the oven between the control knobs](images/on-oven-wide.jpg)
+
 ![The clock face: 11:25 in thin white digits on black](images/clock-face.png)
 
 ![The cover plate](images/cover.png)
