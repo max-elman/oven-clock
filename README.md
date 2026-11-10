@@ -43,6 +43,16 @@ Changes from papyrix-reader (all in `firmware/src/apps/` and `firmware/src/main.
 - Syncs the time over Wi-Fi each time it starts, then once a day. Between minutes it sleeps, and the reader's real-time clock keeps time.
 - Stays awake while plugged into USB, which makes flashing easy.
 - The battery icon only appears below 15%.
+- Reports its battery level to Home Assistant each time it syncs (see below).
+
+### Battery reports to Home Assistant
+
+Each time the clock syncs the time it is already on Wi-Fi, so it also POSTs its battery level to a Home Assistant webhook. That adds about a second of Wi-Fi time, at most 3 seconds if Home Assistant doesn't answer, and a failed report is ignored (`firmware/src/apps/ClockReport.cpp`).
+
+- Put the webhook URL on one line in `/.papyrix/apps/homeassistant.txt` on the microSD card, e.g. `http://192.168.2.195:8123/api/webhook/<webhook id>`. Plain `http://` on the home network only (no HTTPS). With no file, the clock sends nothing.
+- The body is JSON: `{"battery":57,"millivolts":3850,"charging":false,"usb":false,"rssi":-61,"version":"1.37.0-dev"}` (`-1` when a value can't be read).
+- Reports follow the Auto sync setting (every 3, 6 or 24 hours).
+- Home Assistant side: a trigger-based template sensor on that webhook (`local_only: true`), plus alerts below 20% and 10% and when nothing has arrived for 50 hours.
 
 Wi-Fi networks are set up on the device (Settings › Wi-Fi) and saved on its microSD card.
 

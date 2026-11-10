@@ -18,6 +18,7 @@
 #include "../ui/Elements.h"
 #include "../ui/views/SettingsViews.h"
 #include "ClockFaces.h"
+#include "ClockReport.h"
 #include "ClockSettings.h"
 #include "ClockStandby.h"
 #include "MiniApp.h"
@@ -160,6 +161,9 @@ SyncResult synchronize(Core& core, const ClockSettings& settings, bool interacti
     delay(std::min<uint32_t>(20, 10000 - std::min<uint32_t>(10000, millis() - start)));
   }
   esp_sntp_stop();
+  if (cancelled()) return SyncResult::Cancelled;
+  // Oven clock: Wi-Fi is up anyway, so send the battery level to Home Assistant.
+  reportStatus(core);
   if (cancelled()) return SyncResult::Cancelled;
   if (!synced) return SyncResult::Failed;
   return core.clock.updateFromSystem() ? SyncResult::Success : SyncResult::TimeError;
