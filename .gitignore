@@ -2,3 +2,4 @@
 # Only on this Mac: Xteink stock firmware backup, previews made with Apple fonts
 local/
 .claude/
+__pycache__/
