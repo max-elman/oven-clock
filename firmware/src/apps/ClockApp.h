@@ -16,6 +16,8 @@ miniapps::ExitResult prepareExit(Core& core, miniapps::ExitTarget target);
 void exit(Core& core);
 ClockFrame captureFrame(Core& core, int64_t utcSeconds, bool interactive);
 void renderFrame(GfxRenderer& renderer, const ClockFrame& frame);
+// UTC seconds -> US Pacific local seconds (DST worked out by hand, not through the C library's TZ).
+int64_t pacificLocalSeconds(int64_t utc);
 enum class SyncResult : uint8_t { Success, Unavailable, Failed, Cancelled, TimeError };
 SyncResult synchronize(Core& core, const ClockSettings& settings, bool interactive);
 bool prepareStandby(Core& core, ResumeRecord& record);
