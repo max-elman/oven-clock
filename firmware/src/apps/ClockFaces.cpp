@@ -83,13 +83,18 @@ void drawSegment(const Context& context) {
   const auto& r = context.renderer;
   const bool color = context.theme.primaryTextBlack;
   const DisplayTime value = displayTime(context.time, context.use24h);
-  const int digitW = 160;
-  const int digitH = 330;
-  const int thick = 30;
-  const int gap = 26;
-  const int colonW = 60;
   const bool twoHourDigits = value.showLeadingZero || value.hour >= 10;
   const int digits = twoHourDigits ? 4 : 3;
+  // Sized for the 800 px landscape screen; shrunk to fit when the screen is narrower (portrait),
+  // so the last digit isn't cut off.
+  constexpr int fullTotal = 4 * 160 + 2 * 26 + 60 + 2 * 26;
+  const int scalePercent = r.getScreenWidth() >= 800 ? 100 : r.getScreenWidth() * 100 / fullTotal;
+  const auto scaled = [scalePercent](int v) { return std::max(1, v * scalePercent / 100); };
+  const int digitW = scaled(160);
+  const int digitH = scaled(330);
+  const int thick = scaled(30);
+  const int gap = scaled(26);
+  const int colonW = scaled(60);
   const int total = digits * digitW + (digits - 2) * gap + colonW + 2 * gap;
   int x = (r.getScreenWidth() - total) / 2;
   const int y = (r.getScreenHeight() - digitH) / 2;
@@ -99,7 +104,7 @@ void drawSegment(const Context& context) {
   }
   drawSevenSegmentDigit(r, x, y, value.hour % 10, digitW, digitH, thick, color);
   x += digitW + gap;
-  const int dot = 30;
+  const int dot = thick;
   const int cx = x + (colonW - dot) / 2;
   r.fillRect(cx, y + digitH / 3 - dot / 2, dot, dot, color);
   r.fillRect(cx, y + 2 * digitH / 3 - dot / 2, dot, dot, color);
