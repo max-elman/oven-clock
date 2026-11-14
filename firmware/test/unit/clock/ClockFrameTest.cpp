@@ -35,6 +35,20 @@ int main() {
   using namespace papyrix;
   using namespace clock_app;
   TestUtils::TestRunner runner("Clock frame reconstruction");
+  // US Pacific: DST starts 2:00 PST on the second Sunday of March (10:00 UTC) and ends 2:00 PDT on the
+  // first Sunday of November (09:00 UTC).
+  struct PacificCase { int64_t utc; int64_t offsetHours; const char* name; };
+  const PacificCase pacificCases[] = {
+      {1772964000 - 1, -8, "2026: last second before DST starts is PST"},
+      {1772964000, -7, "2026: DST starts 2026-03-08 10:00 UTC"},
+      {1793523600 - 1, -7, "2026: last second before DST ends is PDT"},
+      {1793523600, -8, "2026: DST ends 2026-11-01 09:00 UTC"},
+      {1784000000, -7, "mid-July is PDT"},
+      {1768000000, -8, "mid-January is PST"},
+  };
+  for (const auto& c : pacificCases) {
+    runner.expectEq(c.utc + c.offsetHours * 3600, pacificLocalSeconds(c.utc), c.name);
+  }
   hal::Display::onFlush = [](const hal::Display&) { ++refreshes; };
   for (const bool x3 : {false, true}) {
     hal::Display panel;
